@@ -10,7 +10,7 @@ class ApiService {
   // Dynamic Auth State (null = not logged in)
   static final ValueNotifier<UserModel?> currentUserNotifier = ValueNotifier<UserModel?>(null);
 
-  static UserModel get currentUser => currentUserNotifier.value!;
+  static UserModel get currentUser => currentUserNotifier.value ?? UserModel(id: 'u_default', username: 'guest', displayName: 'Guest User');
   static set currentUser(UserModel user) => currentUserNotifier.value = user;
 
   // Local caching to support offline UI resilience
@@ -183,17 +183,34 @@ class ApiService {
   // MESSAGES
   // ==========================================
 
+  static List<MessageModel> _deduplicate(List<MessageModel> list) {
+    final seenIds = <String>{};
+    final result = <MessageModel>[];
+    for (final m in list) {
+      if (seenIds.add(m.id)) {
+        final duplicate = result.any((existing) =>
+            existing.senderId == m.senderId &&
+            existing.content == m.content &&
+            existing.createdAt.difference(m.createdAt).abs().inSeconds <= 2);
+        if (!duplicate) {
+          result.add(m);
+        }
+      }
+    }
+    return result;
+  }
+
   static Future<List<MessageModel>> getMessages(String conversationId) async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/chat/conversations/$conversationId/messages')).timeout(const Duration(seconds: 3));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final msgs = list.map((item) => MessageModel.fromJson(item)).toList();
-        _localMessages[conversationId] = msgs;
-        return msgs;
+        _localMessages[conversationId] = _deduplicate(msgs);
+        return List<MessageModel>.from(_localMessages[conversationId]!);
       }
     } catch (_) {}
-    return _localMessages[conversationId] ?? [];
+    return List<MessageModel>.from(_localMessages[conversationId] ?? []);
   }
 
   static Future<MessageModel> sendMessage(
@@ -203,8 +220,9 @@ class ApiService {
     String? mediaUrl,
   }) async {
     final me = currentUser;
-    final newMsg = MessageModel(
-      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+    final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+    MessageModel finalMsg = MessageModel(
+      id: tempId,
       conversationId: conversationId,
       senderId: me.id,
       senderName: me.displayName,
@@ -215,9 +233,33 @@ class ApiService {
       createdAt: DateTime.now(),
     );
 
-    // Save locally
+    // Post to Spring Boot backend
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/chat/conversations/$conversationId/messages'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'senderId': me.id,
+          'senderName': me.displayName,
+          'content': content,
+          'type': type.name.toUpperCase(),
+          'mediaUrl': mediaUrl,
+        }),
+      ).timeout(const Duration(seconds: 3));
+      if (res.statusCode == 200) {
+        finalMsg = MessageModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+
+    // Save locally without duplicate entries
     _localMessages.putIfAbsent(conversationId, () => []);
-    _localMessages[conversationId]!.add(newMsg);
+    _localMessages[conversationId]!.removeWhere((m) =>
+        m.id == finalMsg.id ||
+        m.id == tempId ||
+        (m.senderId == finalMsg.senderId &&
+            m.content == finalMsg.content &&
+            m.createdAt.difference(finalMsg.createdAt).abs().inSeconds <= 2));
+    _localMessages[conversationId]!.add(finalMsg);
 
     // Update conversation preview
     final convIndex = _localConversations.indexWhere((c) => c.id == conversationId);
@@ -235,22 +277,7 @@ class ApiService {
       );
     }
 
-    // Post to Spring Boot backend
-    try {
-      await http.post(
-        Uri.parse('$baseUrl/chat/conversations/$conversationId/messages'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'senderId': me.id,
-          'senderName': me.displayName,
-          'content': content,
-          'type': type.name.toUpperCase(),
-          'mediaUrl': mediaUrl,
-        }),
-      ).timeout(const Duration(seconds: 3));
-    } catch (_) {}
-
-    return newMsg;
+    return finalMsg;
   }
 
   // ==========================================

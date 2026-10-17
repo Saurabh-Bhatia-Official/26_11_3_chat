@@ -58,5 +58,15 @@ void main() {
       expect(conv.participant2Id, equals('u2'));
       expect(conv.unreadCount, equals(1));
     });
+
+    test('ApiService deduplicates sender messages so they appear only once', () async {
+      const convId = 'test_conv_dedup';
+      final sent1 = await ApiService.sendMessage(convId, 'Test single message');
+      expect(sent1.content, equals('Test single message'));
+
+      final list = await ApiService.getMessages(convId);
+      final count = list.where((m) => m.content == 'Test single message').length;
+      expect(count, equals(1), reason: 'Message should appear exactly once in the list');
+    });
   });
 }

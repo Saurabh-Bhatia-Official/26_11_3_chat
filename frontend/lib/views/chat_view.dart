@@ -47,7 +47,7 @@ class _ChatViewState extends State<ChatView> {
     final msgs = await ApiService.getMessages(widget.conversation.id);
     if (mounted) {
       setState(() {
-        _messages = msgs;
+        _messages = List<MessageModel>.from(msgs);
         _isLoading = false;
       });
       _scrollToBottom();
@@ -66,6 +66,23 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
+  List<MessageModel> get _displayMessages {
+    final seen = <String>{};
+    final list = <MessageModel>[];
+    for (final m in _messages) {
+      if (seen.add(m.id)) {
+        final hasDup = list.any((ex) =>
+            ex.senderId == m.senderId &&
+            ex.content == m.content &&
+            ex.createdAt.difference(m.createdAt).abs().inSeconds <= 2);
+        if (!hasDup) {
+          list.add(m);
+        }
+      }
+    }
+    return list;
+  }
+
   void _sendMessage({MessageType type = MessageType.text, String? mediaUrl}) async {
     final text = _textController.text.trim();
     if (text.isEmpty && mediaUrl == null) return;
@@ -82,7 +99,14 @@ class _ChatViewState extends State<ChatView> {
 
     if (mounted) {
       setState(() {
-        _messages.add(sent);
+        final exists = _messages.any((m) =>
+            m.id == sent.id ||
+            (m.senderId == sent.senderId &&
+                m.content == sent.content &&
+                m.createdAt.difference(sent.createdAt).abs().inSeconds <= 2));
+        if (!exists) {
+          _messages.add(sent);
+        }
       });
       _scrollToBottom();
     }
@@ -225,11 +249,12 @@ class _ChatViewState extends State<ChatView> {
               : ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  itemCount: _messages.length,
+                  itemCount: _displayMessages.length,
                   itemBuilder: (context, index) {
-                    final msg = _messages[index];
+                    final msg = _displayMessages[index];
                     final isMe = msg.senderId == ApiService.currentUser.id;
                     return MessageBubble(
+                      key: ValueKey(msg.id),
                       message: msg,
                       isMe: isMe,
                       onLaunchGame: (gameType) => setState(() => _activeGame = gameType),
