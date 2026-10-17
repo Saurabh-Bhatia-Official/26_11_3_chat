@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../models/models.dart';
 import '../services/api_service.dart';
 import '../widgets/glass_container.dart';
 
@@ -17,15 +16,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   late TabController _tabController;
 
   // Sign In Controllers
-  final TextEditingController _loginUsernameController = TextEditingController(text: 'alex_rivers');
-  final TextEditingController _loginPasswordController = TextEditingController(text: 'password123');
+  final TextEditingController _loginUsernameController = TextEditingController();
+  final TextEditingController _loginPasswordController = TextEditingController();
 
   // Sign Up Controllers
   final TextEditingController _signupUsernameController = TextEditingController();
   final TextEditingController _signupNameController = TextEditingController();
   final TextEditingController _signupEmailController = TextEditingController();
   final TextEditingController _signupPasswordController = TextEditingController();
-  String _selectedRole = 'MEMBER'; // MEMBER, MODERATOR, ADMIN
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -51,6 +49,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   void _handleLogin() async {
     final username = _loginUsernameController.text.trim();
+    final password = _loginPasswordController.text;
+
     if (username.isEmpty) {
       setState(() => _errorMessage = 'Please enter your username');
       return;
@@ -64,14 +64,14 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     try {
       await ApiService.login(
         username: username,
-        password: _loginPasswordController.text,
+        password: password,
       );
       if (mounted) {
         widget.onAuthenticated();
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = 'Authentication failed: $e');
+        setState(() => _errorMessage = e.toString().replaceAll('Exception: ', ''));
       }
     } finally {
       if (mounted) {
@@ -91,6 +91,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       return;
     }
 
+    if (password.isEmpty) {
+      setState(() => _errorMessage = 'Password is required');
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -102,28 +107,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         displayName: displayName.isNotEmpty ? displayName : username,
         email: email,
         password: password,
-        role: _selectedRole,
       );
       if (mounted) {
         widget.onAuthenticated();
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = 'Sign up failed: $e');
+        setState(() => _errorMessage = e.toString().replaceAll('Exception: ', ''));
       }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
-    }
-  }
-
-  void _quickLogin(UserModel user) async {
-    setState(() => _isLoading = true);
-    await ApiService.login(username: user.username);
-    if (mounted) {
-      setState(() => _isLoading = false);
-      widget.onAuthenticated();
     }
   }
 
@@ -137,7 +132,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
+            constraints: const BoxConstraints(maxWidth: 440),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -156,11 +151,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.bolt, color: Colors.white, size: 40),
+                  child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 36),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'ChatGuard 🛡️',
+                  'ChatGuard 💬',
                   style: GoogleFonts.outfit(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -170,7 +165,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Cross-Platform Chat with Role-Based Access Control',
+                  'Real-time conversations with registered users',
                   style: TextStyle(color: Colors.white70, fontSize: 13),
                   textAlign: TextAlign.center,
                 ),
@@ -229,7 +224,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ),
 
                       SizedBox(
-                        height: 340,
+                        height: 280,
                         child: TabBarView(
                           controller: _tabController,
                           children: [
@@ -240,61 +235,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                             _buildSignUpTab(),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Quick 1-Click Role Switcher Demo Cards
-                GlassContainer(
-                  borderRadius: 16,
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.badge, color: Color(0xFFFBBF24), size: 16),
-                          SizedBox(width: 6),
-                          Text(
-                            'Quick Demo Login (Role-Based Testing):',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildRoleQuickCard(
-                              user: ApiService.alexUser,
-                              badge: 'ADMIN',
-                              color: const Color(0xFFEF4444),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildRoleQuickCard(
-                              user: ApiService.elenaUser,
-                              badge: 'MOD',
-                              color: const Color(0xFF3B82F6),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildRoleQuickCard(
-                              user: ApiService.marcusUser,
-                              badge: 'MEMBER',
-                              color: const Color(0xFF10B981),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
@@ -315,6 +255,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
             labelText: 'Username',
+            hintText: 'Enter your registered username',
             prefixIcon: Icon(Icons.person, color: Colors.white60),
           ),
         ),
@@ -356,11 +297,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 : const Text('Sign In to Chat', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
-        const Spacer(),
-        const Text(
-          'Protected by Spring Boot Security & Supabase Auth',
-          style: TextStyle(color: Colors.white38, fontSize: 11),
-        ),
       ],
     );
   }
@@ -373,7 +309,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             controller: _signupUsernameController,
             style: const TextStyle(color: Colors.white),
             decoration: const InputDecoration(
-              labelText: 'Username (required)',
+              labelText: 'Username',
+              hintText: 'Choose a unique username',
               prefixIcon: Icon(Icons.person, color: Colors.white60),
             ),
           ),
@@ -382,52 +319,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             controller: _signupNameController,
             style: const TextStyle(color: Colors.white),
             decoration: const InputDecoration(
-              labelText: 'Display Name (optional)',
+              labelText: 'Display Name',
+              hintText: 'Your name shown to other users',
               prefixIcon: Icon(Icons.badge, color: Colors.white60),
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Role Selection Dropdown
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.security, color: Color(0xFF06B6D4), size: 20),
-                const SizedBox(width: 12),
-                const Text('Role: ', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedRole,
-                      dropdownColor: const Color(0xFF1E293B),
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'MEMBER',
-                          child: Text('Member (Chat, Games & Calls)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'MODERATOR',
-                          child: Text('Moderator (Chat Moderation)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'ADMIN',
-                          child: Text('Administrator (Full Control)'),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setState(() => _selectedRole = val);
-                      },
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
           const SizedBox(height: 10),
@@ -461,52 +355,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRoleQuickCard({
-    required UserModel user,
-    required String badge,
-    required Color color,
-  }) {
-    return InkWell(
-      onTap: () => _quickLogin(user),
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.black38,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.4)),
-        ),
-        child: Column(
-          children: [
-            CircleAvatar(
-              radius: 14,
-              backgroundImage: user.avatarUrl != null ? NetworkImage(user.avatarUrl!) : null,
-              child: user.avatarUrl == null ? Text(user.displayName[0]) : null,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              user.displayName.split(' ').first,
-              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                badge,
-                style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

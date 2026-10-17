@@ -9,8 +9,6 @@ class UserModel {
   final String bio;
   final String statusMessage;
   final int safetyScore;
-  final String role; // ADMIN, MODERATOR, MEMBER
-  final bool isAdmin;
   final bool isVerified;
   final bool isOnline;
 
@@ -23,17 +21,11 @@ class UserModel {
     this.bio = '',
     this.statusMessage = 'Available',
     this.safetyScore = 100,
-    this.role = 'MEMBER',
-    bool? isAdmin,
     this.isVerified = false,
     this.isOnline = true,
-  }) : isAdmin = isAdmin ?? (role == 'ADMIN');
-
-  bool get isAdministrator => role == 'ADMIN' || isAdmin;
-  bool get isModerator => role == 'MODERATOR' || isAdministrator;
+  });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    final parsedRole = (json['role'] ?? (json['isAdmin'] == true ? 'ADMIN' : 'MEMBER')).toString().toUpperCase();
     return UserModel(
       id: json['id'] ?? '',
       username: json['username'] ?? '',
@@ -43,8 +35,6 @@ class UserModel {
       bio: json['bio'] ?? '',
       statusMessage: json['statusMessage'] ?? 'Available',
       safetyScore: json['safetyScore'] ?? 100,
-      role: parsedRole,
-      isAdmin: json['isAdmin'] ?? (parsedRole == 'ADMIN'),
       isVerified: json['isVerified'] ?? false,
       isOnline: json['isOnline'] ?? true,
     );
@@ -55,12 +45,10 @@ class UserModel {
     'username': username,
     'displayName': displayName,
     'email': email,
-    'role': role,
     'avatarUrl': avatarUrl,
     'bio': bio,
     'statusMessage': statusMessage,
     'safetyScore': safetyScore,
-    'isAdmin': isAdmin,
     'isVerified': isVerified,
     'isOnline': isOnline,
   };
@@ -71,6 +59,8 @@ class ConversationModel {
   final String title;
   final bool isGroup;
   final String? avatarUrl;
+  final String? participant1Id;
+  final String? participant2Id;
   final String? lastMessagePreview;
   final DateTime lastMessageAt;
   final int unreadCount;
@@ -80,6 +70,8 @@ class ConversationModel {
     required this.title,
     this.isGroup = false,
     this.avatarUrl,
+    this.participant1Id,
+    this.participant2Id,
     this.lastMessagePreview,
     required this.lastMessageAt,
     this.unreadCount = 0,
@@ -91,6 +83,8 @@ class ConversationModel {
       title: json['title'] ?? 'Chat',
       isGroup: json['isGroup'] ?? false,
       avatarUrl: json['avatarUrl'],
+      participant1Id: json['participant1Id'],
+      participant2Id: json['participant2Id'],
       lastMessagePreview: json['lastMessagePreview'],
       lastMessageAt: json['lastMessageAt'] != null
           ? DateTime.tryParse(json['lastMessageAt']) ?? DateTime.now()

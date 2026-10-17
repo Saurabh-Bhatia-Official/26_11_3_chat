@@ -5,9 +5,11 @@ import com.chatgen.backend.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -23,16 +25,26 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
         String username = credentials.get("username");
-        User user = userRepository.findByUsername(username)
-                .orElseGet(() -> {
-                    // Create if doesn't exist for seamless demo/testing
-                    User newUser = new User();
-                    newUser.setUsername(username != null ? username : "guest_" + UUID.randomUUID().toString().substring(0, 5));
-                    newUser.setDisplayName(username != null ? username : "Guest User");
-                    newUser.setEmail(username + "@chatguard.io");
-                    newUser.setAvatarUrl("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150");
-                    return userRepository.save(newUser);
-                });
+        String password = credentials.get("password");
+
+        if (username == null || username.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Username is required"));
+        }
+
+        Optional<User> existing = userRepository.findByUsername(username.trim());
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(401).body(Map.of("error", "User not found. Please sign up."));
+        }
+
+        User user = existing.get();
+        if (user.getPassword() != null && !user.getPassword().isBlank() && password != null) {
+            if (!user.getPassword().equals(password)) {
+                return ResponseEntity.status(401).body(Map.of("error", "Incorrect password"));
+            }
+        }
+
+        user.setLastSeen(Instant.now());
+        userRepository.save(user);
 
         Map<String, Object> response = new HashMap<>();
         response.put("token", "jwt_token_" + user.getId());
@@ -45,23 +57,22 @@ public class AuthController {
         String username = payload.get("username");
         String displayName = payload.get("displayName");
         String email = payload.get("email");
-        String requestedRole = payload.getOrDefault("role", "MEMBER");
+        String password = payload.get("password");
 
         if (username == null || username.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Username is required"));
         }
 
-        if (userRepository.findByUsername(username).isPresent()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Username is already taken"));
+        if (userRepository.findByUsername(username.trim()).isPresent()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Username is already registered"));
         }
 
         User newUser = new User();
         newUser.setUsername(username.trim());
         newUser.setDisplayName(displayName != null && !displayName.isBlank() ? displayName.trim() : username.trim());
-        newUser.setEmail(email != null && !email.isBlank() ? email.trim() : username + "@chatguard.io");
+        newUser.setEmail(email != null && !email.isBlank() ? email.trim() : username.trim() + "@chat.io");
+        newUser.setPassword(password);
         newUser.setAvatarUrl("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150");
-        newUser.setRole(requestedRole.toUpperCase());
-        newUser.setIsAdmin("ADMIN".equalsIgnoreCase(requestedRole));
         newUser.setIsVerified(true);
         newUser.setSafetyScore(95);
 

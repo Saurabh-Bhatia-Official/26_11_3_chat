@@ -4,35 +4,21 @@ import 'package:frontend/services/api_service.dart';
 
 void main() {
   group('PRD Domain & Model Tests', () {
-    test('UserModel serialization, roles, and default safety score', () {
+    test('UserModel serialization and dynamic fields', () {
       final user = UserModel(
         id: 'u1',
         username: 'alex',
         displayName: 'Alex Rivers',
-        role: 'ADMIN',
       );
 
       expect(user.safetyScore, equals(100));
-      expect(user.isAdmin, isTrue);
-      expect(user.isAdministrator, isTrue);
-      expect(user.isModerator, isTrue);
-
-      final member = UserModel(
-        id: 'u2',
-        username: 'marcus',
-        displayName: 'Marcus Vance',
-        role: 'MEMBER',
-      );
-      expect(member.isAdministrator, isFalse);
-      expect(member.isModerator, isFalse);
+      expect(user.isVerified, isFalse);
 
       final json = user.toJson();
       expect(json['username'], equals('alex'));
-      expect(json['role'], equals('ADMIN'));
 
       final fromJson = UserModel.fromJson(json);
       expect(fromJson.displayName, equals('Alex Rivers'));
-      expect(fromJson.role, equals('ADMIN'));
     });
 
     test('SafetyEventModel parses severity and colors correctly', () {
@@ -57,17 +43,20 @@ void main() {
       expect(cleanResult['isSuspicious'], isFalse);
     });
 
-    test('ConversationModel unread count and grouping', () {
+    test('ConversationModel participants and preview', () {
       final conv = ConversationModel(
         id: 'c1',
-        title: 'Dev Guild',
-        isGroup: true,
+        title: 'Chat with Bob',
+        participant1Id: 'u1',
+        participant2Id: 'u2',
+        lastMessagePreview: 'Hello Bob!',
         lastMessageAt: DateTime.now(),
-        unreadCount: 3,
+        unreadCount: 1,
       );
 
-      expect(conv.isGroup, isTrue);
-      expect(conv.unreadCount, equals(3));
+      expect(conv.participant1Id, equals('u1'));
+      expect(conv.participant2Id, equals('u2'));
+      expect(conv.unreadCount, equals(1));
     });
   });
 }

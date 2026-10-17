@@ -21,6 +21,10 @@ public class Conversation {
 
     private UUID createdBy;
 
+    private UUID participant1Id;
+
+    private UUID participant2Id;
+
     @Column(columnDefinition = "TEXT")
     private String lastMessagePreview;
 
@@ -44,6 +48,12 @@ public class Conversation {
 
     public UUID getCreatedBy() { return createdBy; }
     public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }
+
+    public UUID getParticipant1Id() { return participant1Id; }
+    public void setParticipant1Id(UUID participant1Id) { this.participant1Id = participant1Id; }
+
+    public UUID getParticipant2Id() { return participant2Id; }
+    public void setParticipant2Id(UUID participant2Id) { this.participant2Id = participant2Id; }
 
     public String getLastMessagePreview() { return lastMessagePreview; }
     public void setLastMessagePreview(String lastMessagePreview) { this.lastMessagePreview = lastMessagePreview; }

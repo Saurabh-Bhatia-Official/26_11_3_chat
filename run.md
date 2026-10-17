@@ -24,7 +24,7 @@ mvn spring-boot:run
 ```
 > **Note on Port**: Configured to port `8085` by default (avoiding conflicts with existing local web servers like Apache/HTTPD on port 8080). You can also run with custom port: `mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8085"`.
 > 
-> Starts automatically with an in-memory H2 database fallback with sample seed users (`alex_rivers`, `elena_rostova`, `marcus_vance`). If Supabase credentials are configured in `.env` or `application.yml`, it will automatically connect to Supabase PostgreSQL.
+> Starts automatically with an in-memory H2 database fallback (or Supabase PostgreSQL when credentials are provided in `.env`/`application.yml`). No hardcoded seed profiles are used—new accounts are registered purely on demand.
 
 ### B. Run Flutter Client (Web / Chrome)
 Open a second terminal:
@@ -41,27 +41,23 @@ flutter run -d windows
 
 ---
 
-## 🔐 Authentication & Role-Based Access Control (RBAC)
+## 🔐 Real-Time User Authentication & Chatting
 
-When you open the application, you will be greeted by the **Sign In / Sign Up Screen**:
+The application is completely dynamic with **no hardcoded data** and **equal access for all users**:
 
-### 1. Pre-configured Role-Based Test Accounts:
-| User | Role | Access Level |
-|---|---|---|
-| **Alex Rivers** (`alex_rivers`) | `ADMIN` 👑 | Full Access to Messaging, Games, Safety Guardian, and **Admin Moderation Console** |
-| **Elena Rostova** (`elena_rostova`) | `MODERATOR` 🛡️ | Messaging, In-Chat Games, Calls, Safety Guardian; Admin Console is restricted |
-| **Marcus Vance** (`marcus_vance`) | `MEMBER` 👤 | Standard Member (Chat, Games, Calls, Guardian); Admin Console is restricted |
+### 1. Sign Up & Sign In:
+- Open the application in your browser or desktop.
+- Switch to the **Create Account** tab and enter a unique **Username**, **Display Name**, and **Password**.
+- Click **Create Account & Enter** to register dynamically in the database.
 
-### 2. Creating New Accounts with Roles:
-- Switch to the **Create Account** tab.
-- Choose your preferred role from the dropdown:
-  - `Member` (Standard Chat, Games & Calls)
-  - `Moderator` (Chat Moderation)
-  - `Administrator` (Full Administrative & Moderation Console Privileges)
+### 2. Starting Conversations with Other Registered Users:
+- Click the **`+` (Add Conversation)** button in the top right of the Messages pane.
+- A list of all currently registered users fetched from the backend will appear.
+- Tap any user to start or resume a private conversation with them immediately.
+- Type and send real-time text, voice notes, Cloudinary photos, or launch in-chat games (Chess, Ludo, Snakes & Ladders)!
 
-### 3. Switching Roles / Logging Out:
-- Click the **Logout icon** at the bottom of the navigation rail to sign out and switch accounts or test different access roles.
-- If a `MEMBER` or `MODERATOR` clicks on the Admin Console, the app enforces **Role-Based Access Control** and displays an **Access Restricted** security screen with a one-click "Switch Role" button.
+### 3. Signing Out:
+- Click the **Logout icon** at the bottom of the navigation rail to sign out. You can sign in as another user to test conversation exchange.
 
 ---
 

@@ -63,7 +63,6 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
         bio: ApiService.currentUser.bio,
         statusMessage: _statusController.text.trim(),
         safetyScore: ApiService.currentUser.safetyScore,
-        isAdmin: ApiService.currentUser.isAdmin,
         isVerified: ApiService.currentUser.isVerified,
       );
     });

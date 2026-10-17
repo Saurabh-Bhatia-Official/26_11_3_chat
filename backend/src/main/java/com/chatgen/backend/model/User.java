@@ -1,5 +1,6 @@
 package com.chatgen.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -21,6 +22,9 @@ public class User {
     @Column(unique = true, length = 255)
     private String email;
 
+    @JsonIgnore
+    private String password;
+
     @Column(length = 30)
     private String phone;
 
@@ -38,11 +42,6 @@ public class User {
     private String themePreference = "dark_neon";
 
     private String appIconPreference = "neon_pulse";
-
-    @Column(length = 20)
-    private String role = "MEMBER"; // ADMIN, MODERATOR, MEMBER
-
-    private Boolean isAdmin = false;
 
     private Boolean isVerified = false;
 
@@ -64,6 +63,9 @@ public class User {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
 
@@ -84,20 +86,6 @@ public class User {
 
     public String getAppIconPreference() { return appIconPreference; }
     public void setAppIconPreference(String appIconPreference) { this.appIconPreference = appIconPreference; }
-
-    public String getRole() { return role; }
-    public void setRole(String role) { 
-        this.role = role;
-        this.isAdmin = "ADMIN".equalsIgnoreCase(role);
-    }
-
-    public Boolean getIsAdmin() { return isAdmin; }
-    public void setIsAdmin(Boolean admin) { 
-        isAdmin = admin; 
-        if (Boolean.TRUE.equals(admin)) {
-            this.role = "ADMIN";
-        }
-    }
 
     public Boolean getIsVerified() { return isVerified; }
     public void setIsVerified(Boolean verified) { isVerified = verified; }

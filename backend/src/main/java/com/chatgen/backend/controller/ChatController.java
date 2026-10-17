@@ -34,12 +34,30 @@ public class ChatController {
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<List<Conversation>> getConversations() {
+    public ResponseEntity<List<Conversation>> getConversations(@RequestParam(required = false) UUID userId) {
+        if (userId != null) {
+            List<Conversation> userConvs = conversationRepository.findByParticipant1IdOrParticipant2IdOrderByLastMessageAtDesc(userId, userId);
+            if (!userConvs.isEmpty()) {
+                return ResponseEntity.ok(userConvs);
+            }
+        }
         return ResponseEntity.ok(conversationRepository.findAllByOrderByLastMessageAtDesc());
     }
 
     @PostMapping("/conversations")
     public ResponseEntity<Conversation> createConversation(@RequestBody Conversation conversation) {
+        UUID p1 = conversation.getParticipant1Id();
+        UUID p2 = conversation.getParticipant2Id();
+
+        // If it's a 1-on-1 chat, check if conversation already exists between p1 and p2
+        if (p1 != null && p2 != null && !Boolean.TRUE.equals(conversation.getIsGroup())) {
+            Optional<Conversation> existing1 = conversationRepository.findFirstByParticipant1IdAndParticipant2Id(p1, p2);
+            if (existing1.isPresent()) return ResponseEntity.ok(existing1.get());
+
+            Optional<Conversation> existing2 = conversationRepository.findFirstByParticipant1IdAndParticipant2Id(p2, p1);
+            if (existing2.isPresent()) return ResponseEntity.ok(existing2.get());
+        }
+
         conversation.setCreatedAt(Instant.now());
         conversation.setLastMessageAt(Instant.now());
         Conversation saved = conversationRepository.save(conversation);

@@ -5,12 +5,11 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/avatar_badge.dart';
 import '../widgets/glass_container.dart';
-import 'admin_view.dart';
 import 'chat_view.dart';
 import 'identity_settings_view.dart';
 import 'safety_guardian_view.dart';
 
-enum MainNavigationTab { chats, safetyGuardian, identity, admin }
+enum MainNavigationTab { chats, safetyGuardian, identity }
 
 class HomeScreen extends StatefulWidget {
   final AppThemeMode currentThemeMode;
@@ -42,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _loadConversations() async {
+    setState(() => _isLoading = true);
     final list = await ApiService.getConversations();
     if (mounted) {
       setState(() {
@@ -54,16 +54,34 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _openNewChatDialog() async {
+    showDialog(
+      context: context,
+      builder: (ctx) => _NewChatDialog(
+        onUserSelected: (selectedUser) async {
+          Navigator.of(ctx).pop();
+          final conv = await ApiService.createConversation(targetUser: selectedUser);
+          setState(() {
+            _selectedConversation = conv;
+            _currentTab = MainNavigationTab.chats;
+          });
+          _loadConversations();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isWide = MediaQuery.of(context).size.width > 800;
+    final currentUser = ApiService.currentUser;
 
     return Scaffold(
       body: Row(
         children: [
           // Left Icon Navigation Rail
-          _buildNavRail(theme),
+          _buildNavRail(theme, currentUser),
 
           // Main Interactive Layout
           Expanded(
@@ -74,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildNavRail(ThemeData theme) {
+  Widget _buildNavRail(ThemeData theme, UserModel currentUser) {
     return Container(
       width: 72,
       decoration: BoxDecoration(
@@ -102,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
             tab: MainNavigationTab.chats,
             icon: Icons.chat_bubble_outline,
             activeIcon: Icons.chat_bubble,
-            tooltip: 'Chats & Games',
+            tooltip: 'Conversations & Games',
           ),
           const SizedBox(height: 16),
           _buildNavRailItem(
@@ -116,71 +134,28 @@ class _HomeScreenState extends State<HomeScreen> {
             tab: MainNavigationTab.identity,
             icon: Icons.palette_outlined,
             activeIcon: Icons.palette,
-            tooltip: 'Dynamic App Identity',
-          ),
-          const SizedBox(height: 16),
-          _buildNavRailItem(
-            tab: MainNavigationTab.admin,
-            icon: Icons.admin_panel_settings_outlined,
-            activeIcon: Icons.admin_panel_settings,
-            tooltip: ApiService.currentUser.isAdministrator ? 'Admin Console' : 'Admin Console (Restricted)',
+            tooltip: 'Appearance & Themes',
           ),
 
           const Spacer(),
 
-          // Current User Profile Avatar, Role Badge & Logout
+          // Current User Profile Avatar & Logout
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(bottom: 16),
             child: Column(
               children: [
                 Tooltip(
-                  message: '${ApiService.currentUser.displayName}\nRole: ${ApiService.currentUser.role}\nSafety Score: ${ApiService.currentUser.safetyScore}%',
-                  child: Column(
-                    children: [
-                      AvatarBadge(
-                        avatarUrl: ApiService.currentUser.avatarUrl,
-                        name: ApiService.currentUser.displayName,
-                        radius: 18,
-                      ),
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: ApiService.currentUser.isAdministrator
-                              ? const Color(0xFFEF4444).withOpacity(0.25)
-                              : (ApiService.currentUser.isModerator
-                                  ? const Color(0xFF3B82F6).withOpacity(0.25)
-                                  : const Color(0xFF10B981).withOpacity(0.25)),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: ApiService.currentUser.isAdministrator
-                                ? const Color(0xFFEF4444).withOpacity(0.5)
-                                : (ApiService.currentUser.isModerator
-                                    ? const Color(0xFF3B82F6).withOpacity(0.5)
-                                    : const Color(0xFF10B981).withOpacity(0.5)),
-                          ),
-                        ),
-                        child: Text(
-                          ApiService.currentUser.role,
-                          style: TextStyle(
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                            color: ApiService.currentUser.isAdministrator
-                                ? const Color(0xFFEF4444)
-                                : (ApiService.currentUser.isModerator
-                                    ? const Color(0xFF60A5FA)
-                                    : const Color(0xFF34D399)),
-                          ),
-                        ),
-                      ),
-                    ],
+                  message: '${currentUser.displayName} (@${currentUser.username})',
+                  child: AvatarBadge(
+                    avatarUrl: currentUser.avatarUrl,
+                    name: currentUser.displayName,
+                    radius: 18,
                   ),
                 ),
                 const SizedBox(height: 10),
-                // Logout Button
                 IconButton(
                   icon: const Icon(Icons.logout, color: Colors.white54, size: 18),
-                  tooltip: 'Sign Out (@${ApiService.currentUser.username})',
+                  tooltip: 'Sign Out (@${currentUser.username})',
                   onPressed: widget.onLogout,
                 ),
               ],
@@ -229,13 +204,6 @@ class _HomeScreenState extends State<HomeScreen> {
           currentThemeMode: widget.currentThemeMode,
           onThemeChanged: widget.onThemeChanged,
         );
-      case MainNavigationTab.admin:
-        // Role-Based Access Guard
-        if (ApiService.currentUser.isAdministrator) {
-          return const AdminView();
-        } else {
-          return _buildAccessDeniedView();
-        }
       case MainNavigationTab.chats:
       default:
         return Row(
@@ -257,8 +225,34 @@ class _HomeScreenState extends State<HomeScreen> {
                       key: ValueKey(_selectedConversation!.id),
                       conversation: _selectedConversation!,
                     )
-                  : const Center(
-                      child: Text('Select a conversation to start messaging', style: TextStyle(color: Colors.white54)),
+                  : Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.forum_outlined, size: 64, color: Colors.white.withOpacity(0.15)),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No conversation selected',
+                            style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Select a chat from the left or start a new conversation',
+                            style: TextStyle(color: Colors.white38, fontSize: 13),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF06B6D4),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                            ),
+                            icon: const Icon(Icons.add_comment, size: 18),
+                            label: const Text('Start New Chat'),
+                            onPressed: _openNewChatDialog,
+                          ),
+                        ],
+                      ),
                     ),
             ),
           ],
@@ -274,220 +268,208 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Column(
       children: [
-        // Search & Filter header
+        // Header with "New Chat" action
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'Messages',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-                decoration: InputDecoration(
-                  hintText: 'Search conversations or messages...',
-                  prefixIcon: const Icon(Icons.search, size: 18, color: Colors.white38),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.04),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                ),
-                onChanged: (val) => setState(() => _searchQuery = val),
+              IconButton(
+                icon: const Icon(Icons.add_circle, color: Color(0xFF06B6D4), size: 26),
+                tooltip: 'Start Chat with User',
+                onPressed: _openNewChatDialog,
               ),
             ],
           ),
         ),
 
-        // Conversation items
+        // Search Input
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: TextField(
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              hintText: 'Search chats...',
+              prefixIcon: const Icon(Icons.search, size: 18, color: Colors.white38),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.04),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+            ),
+            onChanged: (val) => setState(() => _searchQuery = val),
+          ),
+        ),
+
+        // Conversation items or Empty Prompt
         Expanded(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final item = filtered[index];
-                    final isSelected = _selectedConversation?.id == item.id;
-
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.12) : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        border: isSelected ? Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3)) : null,
-                      ),
-                      child: ListTile(
-                        leading: AvatarBadge(
-                          avatarUrl: item.avatarUrl,
-                          name: item.title,
-                          radius: 20,
-                        ),
-                        title: Row(
+              : filtered.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: Text(
-                                item.title,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                ),
-                              ),
+                            Icon(Icons.chat_bubble_outline, size: 36, color: Colors.white.withOpacity(0.2)),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No chats yet',
+                              style: TextStyle(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w600),
                             ),
-                            Text(
-                              DateFormat.jm().format(item.lastMessageAt),
-                              style: const TextStyle(color: Colors.white38, fontSize: 10),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Tap the + button above to chat with any registered user.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.white38, fontSize: 12),
                             ),
                           ],
                         ),
-                        subtitle: Text(
-                          item.lastMessagePreview ?? 'No messages yet',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white70 : Colors.white38,
-                            fontSize: 12,
-                          ),
-                        ),
-                        onTap: () => setState(() => _selectedConversation = item),
                       ),
-                    );
-                  },
-                ),
+                    )
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final item = filtered[index];
+                        final isSelected = _selectedConversation?.id == item.id;
+
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.12) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: isSelected ? Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3)) : null,
+                          ),
+                          child: ListTile(
+                            leading: AvatarBadge(
+                              avatarUrl: item.avatarUrl,
+                              name: item.title,
+                              radius: 20,
+                            ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.title,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  DateFormat.jm().format(item.lastMessageAt),
+                                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                                ),
+                              ],
+                            ),
+                            subtitle: Text(
+                              item.lastMessagePreview ?? 'No messages yet',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white70 : Colors.white38,
+                                fontSize: 12,
+                              ),
+                            ),
+                            onTap: () => setState(() => _selectedConversation = item),
+                          ),
+                        );
+                      },
+                    ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildAccessDeniedView() {
-    final user = ApiService.currentUser;
+class _NewChatDialog extends StatefulWidget {
+  final Function(UserModel) onUserSelected;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 500),
-          child: GlassContainer(
-            borderRadius: 24,
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEF4444).withOpacity(0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.4), width: 2),
-                  ),
-                  child: const Icon(Icons.lock_person, color: Color(0xFFEF4444), size: 48),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Access Restricted',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Role-Based Access Control (RBAC) Enforced',
-                  style: TextStyle(color: Color(0xFFEF4444), fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.black38,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white10),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Active User:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          Text(user.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Current Role:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              user.role,
-                              style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      const Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Required Role:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          Text('ADMINISTRATOR (ADMIN)', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 12)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                const Text(
-                  'Under the PRD security specification, only verified Administrators can inspect system metrics, manage feature flags, moderate accounts, and review safety audit telemetry.',
-                  style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white70,
-                          side: const BorderSide(color: Colors.white24),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: const Icon(Icons.arrow_back, size: 16),
-                        label: const Text('Back to Chats'),
-                        onPressed: () => setState(() => _currentTab = MainNavigationTab.chats),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF06B6D4),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        icon: const Icon(Icons.switch_account, size: 16),
-                        label: const Text('Switch Role'),
-                        onPressed: widget.onLogout,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
+  const _NewChatDialog({required this.onUserSelected});
+
+  @override
+  State<_NewChatDialog> createState() => _NewChatDialogState();
+}
+
+class _NewChatDialogState extends State<_NewChatDialog> {
+  List<UserModel> _users = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUsers();
+  }
+
+  void _fetchUsers() async {
+    final list = await ApiService.getUsers();
+    final myId = ApiService.currentUser.id;
+    if (mounted) {
+      setState(() {
+        // Exclude current user from the list
+        _users = list.where((u) => u.id != myId && u.username != ApiService.currentUser.username).toList();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF131D2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Row(
+        children: [
+          Icon(Icons.person_add, color: Color(0xFF06B6D4)),
+          SizedBox(width: 10),
+          Text('Start Conversation', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        ],
       ),
+      content: SizedBox(
+        width: 380,
+        height: 320,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _users.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No other registered users found yet.\nSign up another account to chat!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: _users.length,
+                    separatorBuilder: (_, __) => const Divider(color: Colors.white10),
+                    itemBuilder: (ctx, i) {
+                      final u = _users[i];
+                      return ListTile(
+                        leading: AvatarBadge(
+                          avatarUrl: u.avatarUrl,
+                          name: u.displayName,
+                          radius: 18,
+                        ),
+                        title: Text(u.displayName, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        subtitle: Text('@${u.username}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        trailing: const Icon(Icons.chat, color: Color(0xFF06B6D4), size: 18),
+                        onTap: () => widget.onUserSelected(u),
+                      );
+                    },
+                  ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+        ),
+      ],
     );
   }
 }
