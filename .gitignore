@@ -1,0 +1,22 @@
+# Environment variables
+.env
+*.env.local
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Java / Maven
+backend/target/
+*.class
+
+# Flutter (keep build/web for Vercel static deployment if desired)
+frontend/.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/build/app/
+frontend/build/ios/
+frontend/build/windows/
+frontend/build/linux/
+frontend/build/macos/

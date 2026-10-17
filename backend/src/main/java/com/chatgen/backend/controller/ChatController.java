@@ -1,0 +1,107 @@
+package com.chatgen.backend.controller;
+
+import com.chatgen.backend.model.Conversation;
+import com.chatgen.backend.model.Message;
+import com.chatgen.backend.repository.ConversationRepository;
+import com.chatgen.backend.repository.MessageRepository;
+import com.chatgen.backend.service.SafetyAnalyzerService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.util.*;
+
+@RestController
+@RequestMapping("/api/chat")
+public class ChatController {
+
+    private final ConversationRepository conversationRepository;
+    private final MessageRepository messageRepository;
+    private final SafetyAnalyzerService safetyAnalyzerService;
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public ChatController(ConversationRepository conversationRepository,
+                          MessageRepository messageRepository,
+                          SafetyAnalyzerService safetyAnalyzerService,
+                          SimpMessagingTemplate messagingTemplate) {
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
+        this.safetyAnalyzerService = safetyAnalyzerService;
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    @GetMapping("/conversations")
+    public ResponseEntity<List<Conversation>> getConversations() {
+        return ResponseEntity.ok(conversationRepository.findAllByOrderByLastMessageAtDesc());
+    }
+
+    @PostMapping("/conversations")
+    public ResponseEntity<Conversation> createConversation(@RequestBody Conversation conversation) {
+        conversation.setCreatedAt(Instant.now());
+        conversation.setLastMessageAt(Instant.now());
+        Conversation saved = conversationRepository.save(conversation);
+        return ResponseEntity.ok(saved);
+    }
+
+    @GetMapping("/conversations/{id}/messages")
+    public ResponseEntity<List<Message>> getMessages(@PathVariable UUID id) {
+        return ResponseEntity.ok(messageRepository.findByConversationIdOrderByCreatedAtAsc(id));
+    }
+
+    @PostMapping("/conversations/{id}/messages")
+    public ResponseEntity<Message> sendMessageRest(@PathVariable UUID id, @RequestBody Message message) {
+        message.setConversationId(id);
+        Message saved = processAndSaveMessage(message);
+        return ResponseEntity.ok(saved);
+    }
+
+    @MessageMapping("/chat.sendMessage")
+    public void sendMessageWebSocket(@Payload Message message) {
+        Message saved = processAndSaveMessage(message);
+        messagingTemplate.convertAndSend("/topic/conversation." + saved.getConversationId(), saved);
+    }
+
+    @MessageMapping("/chat.typing")
+    public void handleTyping(@Payload Map<String, Object> typingEvent) {
+        String conversationId = (String) typingEvent.get("conversationId");
+        if (conversationId != null) {
+            messagingTemplate.convertAndSend("/topic/conversation." + conversationId + ".typing", typingEvent);
+        }
+    }
+
+    @MessageMapping("/chat.callSignal")
+    public void handleCallSignal(@Payload Map<String, Object> signal) {
+        String conversationId = (String) signal.get("conversationId");
+        if (conversationId != null) {
+            messagingTemplate.convertAndSend("/topic/call." + conversationId, signal);
+        }
+    }
+
+    private Message processAndSaveMessage(Message message) {
+        message.setCreatedAt(Instant.now());
+
+        // Run Smart Safety Guardian link detection on message text
+        if (message.getContent() != null && !message.getContent().isBlank()) {
+            Map<String, Object> safetyReport = safetyAnalyzerService.analyzeContentSafety(
+                    message.getSenderId(), message.getContent()
+            );
+            if ((boolean) safetyReport.get("hasThreat")) {
+                message.setSafetyFlagged(true);
+            }
+        }
+
+        Message saved = messageRepository.save(message);
+
+        // Update conversation last message preview
+        conversationRepository.findById(message.getConversationId()).ifPresent(conv -> {
+            conv.setLastMessagePreview(message.getContent());
+            conv.setLastMessageAt(Instant.now());
+            conversationRepository.save(conv);
+        });
+
+        return saved;
+    }
+}
