@@ -7,7 +7,7 @@ class ApiService {
   // Configurable backend URL. On Vercel, can point to deployed Spring Boot server
   static String baseUrl = 'http://localhost:8085/api';
 
-  static UserModel currentUser = UserModel(
+  static final UserModel alexUser = UserModel(
     id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
     username: 'alex_rivers',
     displayName: 'Alex Rivers',
@@ -16,6 +16,7 @@ class ApiService {
     bio: 'Cybersecurity advocate & chess grandmaster ♟️',
     statusMessage: 'Shields up! 🛡️',
     safetyScore: 98,
+    role: 'ADMIN',
     isAdmin: true,
     isVerified: true,
   );
@@ -29,6 +30,7 @@ class ApiService {
     bio: 'Flutter & Spring Boot enthusiast ✨',
     statusMessage: 'Coding the future 💻',
     safetyScore: 94,
+    role: 'MODERATOR',
     isVerified: true,
   );
 
@@ -41,7 +43,16 @@ class ApiService {
     bio: 'Ludo king & board game strategist 🎲',
     statusMessage: 'Ready for a game! ⚔️',
     safetyScore: 89,
+    role: 'MEMBER',
   );
+
+  static final List<UserModel> demoUsers = [alexUser, elenaUser, marcusUser];
+
+  // Auth State
+  static final ValueNotifier<UserModel?> currentUserNotifier = ValueNotifier<UserModel?>(alexUser);
+
+  static UserModel get currentUser => currentUserNotifier.value ?? alexUser;
+  static set currentUser(UserModel user) => currentUserNotifier.value = user;
 
   // In-memory demo store for instant responsiveness & Vercel static deployment
   static final List<ConversationModel> _demoConversations = [
@@ -283,5 +294,89 @@ class ApiService {
         createdAt: DateTime.now(),
       ),
     );
+  }
+
+  // Authentication & Role-Based Access Methods
+  static Future<UserModel> login({required String username, String? password}) async {
+    // 1. Check if matches any demo user
+    final match = demoUsers.where((u) => u.username.toLowerCase() == username.toLowerCase().trim()).firstOrNull;
+    if (match != null) {
+      currentUserNotifier.value = match;
+      return match;
+    }
+
+    // 2. Try Spring Boot Backend
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password ?? ''}),
+      ).timeout(const Duration(seconds: 2));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final user = UserModel.fromJson(data['user'] ?? data);
+        currentUserNotifier.value = user;
+        return user;
+      }
+    } catch (_) {}
+
+    // 3. Fallback: generate custom user session
+    final generatedUser = UserModel(
+      id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
+      username: username.trim(),
+      displayName: username.trim(),
+      role: 'MEMBER',
+      safetyScore: 92,
+    );
+    currentUserNotifier.value = generatedUser;
+    return generatedUser;
+  }
+
+  static Future<UserModel> signup({
+    required String username,
+    required String displayName,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    // Try Spring Boot Backend
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/auth/signup'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': username.trim(),
+          'displayName': displayName.trim(),
+          'email': email.trim(),
+          'password': password,
+          'role': role.toUpperCase(),
+        }),
+      ).timeout(const Duration(seconds: 2));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final user = UserModel.fromJson(data['user'] ?? data);
+        currentUserNotifier.value = user;
+        return user;
+      }
+    } catch (_) {}
+
+    // Fallback registration
+    final newUser = UserModel(
+      id: 'usr_${DateTime.now().millisecondsSinceEpoch}',
+      username: username.trim(),
+      displayName: displayName.trim().isNotEmpty ? displayName.trim() : username.trim(),
+      email: email.trim(),
+      role: role.toUpperCase(),
+      safetyScore: 96,
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+    );
+    currentUserNotifier.value = newUser;
+    return newUser;
+  }
+
+  static void logout() {
+    currentUserNotifier.value = null;
   }
 }

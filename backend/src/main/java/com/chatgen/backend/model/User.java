@@ -39,6 +39,9 @@ public class User {
 
     private String appIconPreference = "neon_pulse";
 
+    @Column(length = 20)
+    private String role = "MEMBER"; // ADMIN, MODERATOR, MEMBER
+
     private Boolean isAdmin = false;
 
     private Boolean isVerified = false;
@@ -82,8 +85,19 @@ public class User {
     public String getAppIconPreference() { return appIconPreference; }
     public void setAppIconPreference(String appIconPreference) { this.appIconPreference = appIconPreference; }
 
+    public String getRole() { return role; }
+    public void setRole(String role) { 
+        this.role = role;
+        this.isAdmin = "ADMIN".equalsIgnoreCase(role);
+    }
+
     public Boolean getIsAdmin() { return isAdmin; }
-    public void setIsAdmin(Boolean admin) { isAdmin = admin; }
+    public void setIsAdmin(Boolean admin) { 
+        isAdmin = admin; 
+        if (Boolean.TRUE.equals(admin)) {
+            this.role = "ADMIN";
+        }
+    }
 
     public Boolean getIsVerified() { return isVerified; }
     public void setIsVerified(Boolean verified) { isVerified = verified; }

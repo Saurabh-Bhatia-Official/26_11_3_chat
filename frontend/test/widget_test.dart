@@ -4,21 +4,35 @@ import 'package:frontend/services/api_service.dart';
 
 void main() {
   group('PRD Domain & Model Tests', () {
-    test('UserModel serialization and default safety score', () {
+    test('UserModel serialization, roles, and default safety score', () {
       final user = UserModel(
         id: 'u1',
         username: 'alex',
         displayName: 'Alex Rivers',
+        role: 'ADMIN',
       );
 
       expect(user.safetyScore, equals(100));
-      expect(user.isAdmin, isFalse);
+      expect(user.isAdmin, isTrue);
+      expect(user.isAdministrator, isTrue);
+      expect(user.isModerator, isTrue);
+
+      final member = UserModel(
+        id: 'u2',
+        username: 'marcus',
+        displayName: 'Marcus Vance',
+        role: 'MEMBER',
+      );
+      expect(member.isAdministrator, isFalse);
+      expect(member.isModerator, isFalse);
 
       final json = user.toJson();
       expect(json['username'], equals('alex'));
+      expect(json['role'], equals('ADMIN'));
 
       final fromJson = UserModel.fromJson(json);
       expect(fromJson.displayName, equals('Alex Rivers'));
+      expect(fromJson.role, equals('ADMIN'));
     });
 
     test('SafetyEventModel parses severity and colors correctly', () {

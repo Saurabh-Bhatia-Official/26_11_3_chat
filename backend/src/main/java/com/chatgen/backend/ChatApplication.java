@@ -26,6 +26,7 @@ public class ChatApplication {
                 alex.setStatusMessage("Shields up! 🛡️");
                 alex.setBio("Cybersecurity advocate & chess grandmaster ♟️");
                 alex.setSafetyScore(98);
+                alex.setRole("ADMIN");
                 alex.setIsAdmin(true);
                 userRepository.save(alex);
 
@@ -37,6 +38,7 @@ public class ChatApplication {
                 elena.setStatusMessage("Coding the future 💻");
                 elena.setBio("Flutter & Spring Boot enthusiast ✨");
                 elena.setSafetyScore(95);
+                elena.setRole("MODERATOR");
                 userRepository.save(elena);
 
                 User marcus = new User();
@@ -47,6 +49,7 @@ public class ChatApplication {
                 marcus.setStatusMessage("Ready for a game! ⚔️");
                 marcus.setBio("Ludo king & board game strategist 🎲");
                 marcus.setSafetyScore(89);
+                marcus.setRole("MEMBER");
                 userRepository.save(marcus);
             }
         };

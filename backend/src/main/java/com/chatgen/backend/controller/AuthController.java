@@ -40,6 +40,43 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/signup")
+    public ResponseEntity<?> signup(@RequestBody Map<String, String> payload) {
+        String username = payload.get("username");
+        String displayName = payload.get("displayName");
+        String email = payload.get("email");
+        String requestedRole = payload.getOrDefault("role", "MEMBER");
+
+        if (username == null || username.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Username is required"));
+        }
+
+        if (userRepository.findByUsername(username).isPresent()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Username is already taken"));
+        }
+
+        User newUser = new User();
+        newUser.setUsername(username.trim());
+        newUser.setDisplayName(displayName != null && !displayName.isBlank() ? displayName.trim() : username.trim());
+        newUser.setEmail(email != null && !email.isBlank() ? email.trim() : username + "@chatguard.io");
+        newUser.setAvatarUrl("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150");
+        newUser.setRole(requestedRole.toUpperCase());
+        newUser.setIsAdmin("ADMIN".equalsIgnoreCase(requestedRole));
+        newUser.setIsVerified(true);
+        newUser.setSafetyScore(95);
+
+        User saved = userRepository.save(newUser);
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", "jwt_token_" + saved.getId());
+        response.put("user", saved);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody Map<String, String> payload) {
+        return signup(payload);
+    }
+
     @GetMapping("/users")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userRepository.findAll());

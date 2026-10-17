@@ -15,11 +15,13 @@ enum MainNavigationTab { chats, safetyGuardian, identity, admin }
 class HomeScreen extends StatefulWidget {
   final AppThemeMode currentThemeMode;
   final Function(AppThemeMode) onThemeChanged;
+  final VoidCallback onLogout;
 
   const HomeScreen({
     super.key,
     required this.currentThemeMode,
     required this.onThemeChanged,
+    required this.onLogout,
   });
 
   @override
@@ -121,21 +123,67 @@ class _HomeScreenState extends State<HomeScreen> {
             tab: MainNavigationTab.admin,
             icon: Icons.admin_panel_settings_outlined,
             activeIcon: Icons.admin_panel_settings,
-            tooltip: 'Admin Console',
+            tooltip: ApiService.currentUser.isAdministrator ? 'Admin Console' : 'Admin Console (Restricted)',
           ),
 
           const Spacer(),
 
-          // Current User Profile Avatar & Online Status
+          // Current User Profile Avatar, Role Badge & Logout
           Padding(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: Tooltip(
-              message: '${ApiService.currentUser.displayName} (Safety Score: ${ApiService.currentUser.safetyScore}%)',
-              child: AvatarBadge(
-                avatarUrl: ApiService.currentUser.avatarUrl,
-                name: ApiService.currentUser.displayName,
-                radius: 18,
-              ),
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              children: [
+                Tooltip(
+                  message: '${ApiService.currentUser.displayName}\nRole: ${ApiService.currentUser.role}\nSafety Score: ${ApiService.currentUser.safetyScore}%',
+                  child: Column(
+                    children: [
+                      AvatarBadge(
+                        avatarUrl: ApiService.currentUser.avatarUrl,
+                        name: ApiService.currentUser.displayName,
+                        radius: 18,
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: ApiService.currentUser.isAdministrator
+                              ? const Color(0xFFEF4444).withOpacity(0.25)
+                              : (ApiService.currentUser.isModerator
+                                  ? const Color(0xFF3B82F6).withOpacity(0.25)
+                                  : const Color(0xFF10B981).withOpacity(0.25)),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: ApiService.currentUser.isAdministrator
+                                ? const Color(0xFFEF4444).withOpacity(0.5)
+                                : (ApiService.currentUser.isModerator
+                                    ? const Color(0xFF3B82F6).withOpacity(0.5)
+                                    : const Color(0xFF10B981).withOpacity(0.5)),
+                          ),
+                        ),
+                        child: Text(
+                          ApiService.currentUser.role,
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                            color: ApiService.currentUser.isAdministrator
+                                ? const Color(0xFFEF4444)
+                                : (ApiService.currentUser.isModerator
+                                    ? const Color(0xFF60A5FA)
+                                    : const Color(0xFF34D399)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Logout Button
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.white54, size: 18),
+                  tooltip: 'Sign Out (@${ApiService.currentUser.username})',
+                  onPressed: widget.onLogout,
+                ),
+              ],
             ),
           ),
         ],
@@ -182,7 +230,12 @@ class _HomeScreenState extends State<HomeScreen> {
           onThemeChanged: widget.onThemeChanged,
         );
       case MainNavigationTab.admin:
-        return const AdminView();
+        // Role-Based Access Guard
+        if (ApiService.currentUser.isAdministrator) {
+          return const AdminView();
+        } else {
+          return _buildAccessDeniedView();
+        }
       case MainNavigationTab.chats:
       default:
         return Row(
@@ -306,6 +359,135 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAccessDeniedView() {
+    final user = ApiService.currentUser;
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: GlassContainer(
+            borderRadius: 24,
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.4), width: 2),
+                  ),
+                  child: const Icon(Icons.lock_person, color: Color(0xFFEF4444), size: 48),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Access Restricted',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Role-Based Access Control (RBAC) Enforced',
+                  style: TextStyle(color: Color(0xFFEF4444), fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.black38,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Active User:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text(user.displayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Current Role:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              user.role,
+                              style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Required Role:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          Text('ADMINISTRATOR (ADMIN)', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Under the PRD security specification, only verified Administrators can inspect system metrics, manage feature flags, moderate accounts, and review safety audit telemetry.',
+                  style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white70,
+                          side: const BorderSide(color: Colors.white24),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: const Icon(Icons.arrow_back, size: 16),
+                        label: const Text('Back to Chats'),
+                        onPressed: () => setState(() => _currentTab = MainNavigationTab.chats),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF06B6D4),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: const Icon(Icons.switch_account, size: 16),
+                        label: const Text('Switch Role'),
+                        onPressed: widget.onLogout,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
