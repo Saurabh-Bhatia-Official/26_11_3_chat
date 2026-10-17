@@ -41,6 +41,30 @@ flutter run -d windows
 
 ---
 
+## 🔐 Authentication & Role-Based Access Control (RBAC)
+
+When you open the application, you will be greeted by the **Sign In / Sign Up Screen**:
+
+### 1. Pre-configured Role-Based Test Accounts:
+| User | Role | Access Level |
+|---|---|---|
+| **Alex Rivers** (`alex_rivers`) | `ADMIN` 👑 | Full Access to Messaging, Games, Safety Guardian, and **Admin Moderation Console** |
+| **Elena Rostova** (`elena_rostova`) | `MODERATOR` 🛡️ | Messaging, In-Chat Games, Calls, Safety Guardian; Admin Console is restricted |
+| **Marcus Vance** (`marcus_vance`) | `MEMBER` 👤 | Standard Member (Chat, Games, Calls, Guardian); Admin Console is restricted |
+
+### 2. Creating New Accounts with Roles:
+- Switch to the **Create Account** tab.
+- Choose your preferred role from the dropdown:
+  - `Member` (Standard Chat, Games & Calls)
+  - `Moderator` (Chat Moderation)
+  - `Administrator` (Full Administrative & Moderation Console Privileges)
+
+### 3. Switching Roles / Logging Out:
+- Click the **Logout icon** at the bottom of the navigation rail to sign out and switch accounts or test different access roles.
+- If a `MEMBER` or `MODERATOR` clicks on the Admin Console, the app enforces **Role-Based Access Control** and displays an **Access Restricted** security screen with a one-click "Switch Role" button.
+
+---
+
 ## 2. 🐳 Run via Docker Compose (PostgreSQL + Spring Boot)
 
 To run the PostgreSQL database with the Supabase schema and the Spring Boot backend containerized together:
