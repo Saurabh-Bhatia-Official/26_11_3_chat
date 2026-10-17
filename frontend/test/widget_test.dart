@@ -68,5 +68,32 @@ void main() {
       final count = list.where((m) => m.content == 'Test single message').length;
       expect(count, equals(1), reason: 'Message should appear exactly once in the list');
     });
+
+    test('MessageModel retains senderAvatarUrl and emergency contacts manage accounts', () async {
+      final msg = MessageModel(
+        id: 'm1',
+        conversationId: 'c1',
+        senderId: 'u1',
+        senderName: 'Alice',
+        senderAvatarUrl: 'https://example.com/avatar.jpg',
+        content: 'Hello!',
+        createdAt: DateTime.now(),
+      );
+
+      expect(msg.senderAvatarUrl, equals('https://example.com/avatar.jpg'));
+
+      final contact = await ApiService.addEmergencyContact(
+        name: 'SecOps Guild',
+        accountOrEmail: 'secops@chatguard.io',
+        relationship: 'Security Team Account',
+        phone: '+1 555-0100',
+      );
+
+      expect(contact.name, equals('SecOps Guild'));
+      expect(contact.accountOrEmail, equals('secops@chatguard.io'));
+
+      final allContacts = await ApiService.getEmergencyContacts();
+      expect(allContacts.any((c) => c.accountOrEmail == 'secops@chatguard.io'), isTrue);
+    });
   });
 }

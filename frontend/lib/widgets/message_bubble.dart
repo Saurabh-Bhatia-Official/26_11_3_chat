@@ -7,12 +7,16 @@ import 'safety_warning_dialog.dart';
 class MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMe;
+  final bool isSelected;
+  final VoidCallback? onSelect;
   final Function(String gameType)? onLaunchGame;
 
   const MessageBubble({
     super.key,
     required this.message,
     required this.isMe,
+    this.isSelected = false,
+    this.onSelect,
     this.onLaunchGame,
   });
 
@@ -52,55 +56,112 @@ class MessageBubble extends StatelessWidget {
 
     final primaryColor = theme.primaryColor;
     final bubbleColor = isMe
-        ? primaryColor.withOpacity(0.9)
+        ? primaryColor.withValues(alpha: 0.9)
         : (isDark ? const Color(0xFF1E293B) : Colors.white);
     final textColor = isMe
         ? Colors.white
         : (isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A));
 
+    final effectiveAvatarUrl = message.senderAvatarUrl ??
+        (isMe ? ApiService.currentUser.avatarUrl : null);
+
+    final avatarWidget = Tooltip(
+      message: message.senderName,
+      child: CircleAvatar(
+        radius: 14,
+        backgroundColor: primaryColor.withValues(alpha: 0.2),
+        backgroundImage: (effectiveAvatarUrl != null && effectiveAvatarUrl.isNotEmpty)
+            ? NetworkImage(effectiveAvatarUrl)
+            : null,
+        child: (effectiveAvatarUrl == null || effectiveAvatarUrl.isEmpty)
+            ? Text(
+                message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryColor),
+              )
+            : null,
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Align(
-        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.75 > 500
-                ? 500
-                : MediaQuery.of(context).size.width * 0.75,
-          ),
-          child: Column(
-            crossAxisAlignment:
-                isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [
-              if (!isMe)
+      child: Row(
+        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isMe) ...[
+            avatarWidget,
+            const SizedBox(width: 8),
+          ],
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.75 > 500
+                  ? 500
+                  : MediaQuery.of(context).size.width * 0.75,
+            ),
+            child: Column(
+              crossAxisAlignment:
+                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
                 Padding(
-                  padding: const EdgeInsets.only(left: 4, bottom: 4),
-                  child: Text(
-                    message.senderName,
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  padding: const EdgeInsets.only(left: 4, right: 4, bottom: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        isMe ? 'You (${message.senderName})' : message.senderName,
+                        style: TextStyle(
+                          color: isMe ? Colors.white60 : primaryColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (isSelected) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF06B6D4),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'SELECTED',
+                            style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              Container(
-                decoration: BoxDecoration(
-                  color: bubbleColor,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
-                    bottomLeft: Radius.circular(isMe ? 16 : 4),
-                    bottomRight: Radius.circular(isMe ? 4 : 16),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                GestureDetector(
+                  onTap: onSelect,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                      ),
+                      border: isSelected
+                          ? Border.all(color: const Color(0xFF06B6D4), width: 2.5)
+                          : null,
+                      boxShadow: [
+                        if (isSelected)
+                          BoxShadow(
+                            color: const Color(0xFF06B6D4).withValues(alpha: 0.4),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          )
+                        else
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,12 +379,16 @@ class MessageBubble extends StatelessWidget {
                         ],
                       ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            avatarWidget,
+          ],
+        ],
       ),
     );
   }

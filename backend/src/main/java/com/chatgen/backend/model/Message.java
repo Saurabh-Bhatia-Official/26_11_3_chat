@@ -19,6 +19,7 @@ public class Message {
     private UUID senderId;
 
     private String senderName;
+    private String senderAvatarUrl;
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
@@ -58,6 +59,9 @@ public class Message {
 
     public String getSenderName() { return senderName; }
     public void setSenderName(String senderName) { this.senderName = senderName; }
+
+    public String getSenderAvatarUrl() { return senderAvatarUrl; }
+    public void setSenderAvatarUrl(String senderAvatarUrl) { this.senderAvatarUrl = senderAvatarUrl; }
 
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }

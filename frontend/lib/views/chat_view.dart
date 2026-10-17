@@ -26,6 +26,7 @@ class _ChatViewState extends State<ChatView> {
   String? _activeGame; // CHESS, LUDO, SNAKES_AND_LADDERS, or null
   bool _isInCall = false;
   bool _isCallVideo = true;
+  MessageModel? _selectedMessage;
 
   @override
   void initState() {
@@ -257,11 +258,21 @@ class _ChatViewState extends State<ChatView> {
                       key: ValueKey(msg.id),
                       message: msg,
                       isMe: isMe,
+                      isSelected: _selectedMessage?.id == msg.id,
+                      onSelect: () {
+                        setState(() {
+                          _selectedMessage = (_selectedMessage?.id == msg.id) ? null : msg;
+                        });
+                      },
                       onLaunchGame: (gameType) => setState(() => _activeGame = gameType),
                     );
                   },
                 ),
         ),
+
+        // Selected Message Info Banner (Shows sender name and profile photo)
+        if (_selectedMessage != null)
+          _buildSelectedMessageInfoBanner(_selectedMessage!),
 
         // Message Composer Bar
         GlassContainer(
@@ -331,5 +342,190 @@ class _ChatViewState extends State<ChatView> {
       default:
         return SnakesLaddersView(onClose: () => setState(() => _activeGame = null));
     }
+  }
+
+  Widget _buildSelectedMessageInfoBanner(MessageModel msg) {
+    final isMe = msg.senderId == ApiService.currentUser.id;
+    final effectiveAvatarUrl = msg.senderAvatarUrl ?? (isMe ? ApiService.currentUser.avatarUrl : null);
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        border: Border(
+          top: BorderSide(color: const Color(0xFF06B6D4).withValues(alpha: 0.5), width: 1.5),
+          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Sender Profile Photo
+          GestureDetector(
+            onTap: () => _showSenderProfileModal(msg),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: theme.primaryColor.withValues(alpha: 0.25),
+              backgroundImage: (effectiveAvatarUrl != null && effectiveAvatarUrl.isNotEmpty)
+                  ? NetworkImage(effectiveAvatarUrl)
+                  : null,
+              child: (effectiveAvatarUrl == null || effectiveAvatarUrl.isEmpty)
+                  ? Text(
+                      msg.senderName.isNotEmpty ? msg.senderName[0].toUpperCase() : '?',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: theme.primaryColor, fontSize: 14),
+                    )
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Sender Name and Message Snippet
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      isMe ? 'You (${msg.senderName})' : msg.senderName,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF06B6D4).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        DateFormat.jm().format(msg.createdAt),
+                        style: const TextStyle(color: Color(0xFF38BDF8), fontSize: 10, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  msg.content,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          // View Profile Button
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF06B6D4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            ),
+            icon: const Icon(Icons.account_circle_outlined, size: 16),
+            label: const Text('Sender Info', style: TextStyle(fontSize: 11)),
+            onPressed: () => _showSenderProfileModal(msg),
+          ),
+          // Deselect Action
+          IconButton(
+            icon: const Icon(Icons.close, size: 18, color: Colors.white54),
+            tooltip: 'Deselect Message',
+            onPressed: () => setState(() => _selectedMessage = null),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSenderProfileModal(MessageModel msg) {
+    final isMe = msg.senderId == ApiService.currentUser.id;
+    final effectiveAvatarUrl = msg.senderAvatarUrl ?? (isMe ? ApiService.currentUser.avatarUrl : null);
+    final theme = Theme.of(context);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 46,
+              backgroundColor: theme.primaryColor.withValues(alpha: 0.25),
+              backgroundImage: (effectiveAvatarUrl != null && effectiveAvatarUrl.isNotEmpty)
+                  ? NetworkImage(effectiveAvatarUrl)
+                  : null,
+              child: (effectiveAvatarUrl == null || effectiveAvatarUrl.isEmpty)
+                  ? Text(
+                      msg.senderName.isNotEmpty ? msg.senderName[0].toUpperCase() : '?',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: theme.primaryColor, fontSize: 36),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isMe ? '${msg.senderName} (You)' : msg.senderName,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.verified, color: Color(0xFF10B981), size: 14),
+                  SizedBox(width: 4),
+                  Text('Active User Profile', style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Sender Account ID', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(msg.senderId, style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'monospace')),
+                  const SizedBox(height: 10),
+                  const Text('Selected Message', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(msg.content, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Timestamp: ${DateFormat.yMMMd().add_jm().format(msg.createdAt)} • ${msg.deliveryStatus}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF06B6D4),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 44),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

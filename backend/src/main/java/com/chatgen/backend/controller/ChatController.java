@@ -20,15 +20,18 @@ public class ChatController {
 
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
+    private final UserRepository userRepository;
     private final SafetyAnalyzerService safetyAnalyzerService;
     private final SimpMessagingTemplate messagingTemplate;
 
     public ChatController(ConversationRepository conversationRepository,
                           MessageRepository messageRepository,
+                          UserRepository userRepository,
                           SafetyAnalyzerService safetyAnalyzerService,
                           SimpMessagingTemplate messagingTemplate) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
+        this.userRepository = userRepository;
         this.safetyAnalyzerService = safetyAnalyzerService;
         this.messagingTemplate = messagingTemplate;
     }
@@ -100,6 +103,17 @@ public class ChatController {
 
     private Message processAndSaveMessage(Message message) {
         message.setCreatedAt(Instant.now());
+
+        if (message.getSenderAvatarUrl() == null || message.getSenderAvatarUrl().isBlank()) {
+            if (message.getSenderId() != null) {
+                userRepository.findById(message.getSenderId()).ifPresent(u -> {
+                    message.setSenderAvatarUrl(u.getAvatarUrl());
+                    if (message.getSenderName() == null || message.getSenderName().isBlank()) {
+                        message.setSenderName(u.getDisplayName());
+                    }
+                });
+            }
+        }
 
         // Run Smart Safety Guardian link detection on message text
         if (message.getContent() != null && !message.getContent().isBlank()) {

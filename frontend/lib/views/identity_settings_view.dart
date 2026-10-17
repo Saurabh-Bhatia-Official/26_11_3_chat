@@ -19,60 +19,82 @@ class IdentitySettingsView extends StatefulWidget {
 }
 
 class _IdentitySettingsViewState extends State<IdentitySettingsView> {
-  final TextEditingController _nameController =
-      TextEditingController(text: ApiService.currentUser.displayName);
-  final TextEditingController _statusController =
-      TextEditingController(text: ApiService.currentUser.statusMessage);
+  late final TextEditingController _nameController;
+  late final TextEditingController _usernameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _bioController;
+  late final TextEditingController _statusController;
+  late final TextEditingController _avatarUrlController;
+
+  bool _isSaving = false;
   String selectedIcon = 'neon_pulse';
 
-  final List<Map<String, dynamic>> icons = [
-    {
-      'id': 'neon_pulse',
-      'name': 'Neon Pulse',
-      'icon': Icons.bolt,
-      'color': const Color(0xFF06B6D4)
-    },
-    {
-      'id': 'stealth_slate',
-      'name': 'Stealth Slate',
-      'icon': Icons.security,
-      'color': const Color(0xFF94A3B8)
-    },
-    {
-      'id': 'emerald_spark',
-      'name': 'Emerald Spark',
-      'icon': Icons.auto_awesome,
-      'color': const Color(0xFF10B981)
-    },
-    {
-      'id': 'royal_crest',
-      'name': 'Royal Crest',
-      'icon': Icons.shield,
-      'color': const Color(0xFF3B82F6)
-    },
+  final List<String> _avatarPresets = [
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300',
+    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300',
+    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300',
+    'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=300',
   ];
 
-  void _saveProfile() {
-    setState(() {
-      ApiService.currentUser = UserModel(
-        id: ApiService.currentUser.id,
-        username: ApiService.currentUser.username,
-        displayName: _nameController.text.trim(),
-        email: ApiService.currentUser.email,
-        avatarUrl: ApiService.currentUser.avatarUrl,
-        bio: ApiService.currentUser.bio,
-        statusMessage: _statusController.text.trim(),
-        safetyScore: ApiService.currentUser.safetyScore,
-        isVerified: ApiService.currentUser.isVerified,
-      );
-    });
+  final List<String> _quickStatusList = [
+    'Available',
+    'Coding 💻',
+    'In a match ♟️',
+    'Busy ⛔',
+    'On Mobile 📱',
+    'Shields up! 🛡️',
+  ];
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('App Identity & Profile updated successfully!'),
-        backgroundColor: Color(0xFF10B981),
-      ),
+  @override
+  void initState() {
+    super.initState();
+    final user = ApiService.currentUser;
+    _nameController = TextEditingController(text: user.displayName);
+    _usernameController = TextEditingController(text: user.username);
+    _emailController = TextEditingController(text: user.email ?? '');
+    _phoneController = TextEditingController(text: user.phone ?? '');
+    _bioController = TextEditingController(text: user.bio);
+    _statusController = TextEditingController(text: user.statusMessage);
+    _avatarUrlController = TextEditingController(text: user.avatarUrl ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _usernameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _bioController.dispose();
+    _statusController.dispose();
+    _avatarUrlController.dispose();
+    super.dispose();
+  }
+
+  void _saveProfile() async {
+    setState(() => _isSaving = true);
+
+    await ApiService.updateProfile(
+      displayName: _nameController.text.trim(),
+      username: _usernameController.text.trim(),
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
+      bio: _bioController.text.trim(),
+      avatarUrl: _avatarUrlController.text.trim(),
+      statusMessage: _statusController.text.trim(),
     );
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile & Identity updated and saved successfully!'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    }
   }
 
   @override
@@ -220,26 +242,212 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
           ),
           const SizedBox(height: 24),
 
-          // In-App Display Identity Customizer
+          // Complete Profile & Identity Settings (Edit Everything)
           GlassContainer(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'In-App Display Name & Status',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    const Icon(Icons.manage_accounts, color: Color(0xFF06B6D4), size: 24),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Full Profile Settings & Personalization',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.shield, color: Color(0xFF10B981), size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Safety Score: ${ApiService.currentUser.safetyScore}%',
+                            style: const TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _nameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
-                    labelText: 'Display Name',
-                    prefixIcon: Icon(Icons.person, color: Colors.white70),
-                  ),
+                const SizedBox(height: 20),
+
+                // 1. Profile Photo / Avatar Editor
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 38,
+                      backgroundColor: const Color(0xFF06B6D4).withValues(alpha: 0.25),
+                      backgroundImage: _avatarUrlController.text.isNotEmpty
+                          ? NetworkImage(_avatarUrlController.text)
+                          : null,
+                      child: _avatarUrlController.text.isEmpty
+                          ? Text(
+                              _nameController.text.isNotEmpty ? _nameController.text[0].toUpperCase() : '?',
+                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF06B6D4)),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Profile Photo URL', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: _avatarUrlController,
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Paste custom photo or Cloudinary URL',
+                              prefixIcon: const Icon(Icons.photo_camera, color: Colors.white54, size: 18),
+                              suffixIcon: _avatarUrlController.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18, color: Colors.white38),
+                                      onPressed: () {
+                                        _avatarUrlController.clear();
+                                        setState(() {});
+                                      },
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('Or select an instant avatar preset:', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: _avatarPresets.map((preset) {
+                    final isCurrent = _avatarUrlController.text == preset;
+                    return GestureDetector(
+                      onTap: () {
+                        _avatarUrlController.text = preset;
+                        setState(() {});
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isCurrent ? const Color(0xFF06B6D4) : Colors.transparent,
+                            width: 2.5,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          radius: 18,
+                          backgroundImage: NetworkImage(preset),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+
+                const Divider(height: 36, color: Colors.white12),
+
+                // 2. Personal & Account Details
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 650;
+                    final displayNameField = TextField(
+                      controller: _nameController,
+                      style: const TextStyle(color: Colors.white),
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Display Name',
+                        prefixIcon: Icon(Icons.badge, color: Colors.white70),
+                      ),
+                    );
+
+                    final usernameField = TextField(
+                      controller: _usernameController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Username (@handle)',
+                        prefixIcon: Icon(Icons.alternate_email, color: Colors.white70),
+                      ),
+                    );
+
+                    if (isCompact) {
+                      return Column(
+                        children: [
+                          displayNameField,
+                          const SizedBox(height: 14),
+                          usernameField,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: displayNameField),
+                        const SizedBox(width: 16),
+                        Expanded(child: usernameField),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 14),
+
+                // 3. Contact Info (Email & Phone)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 650;
+                    final emailField = TextField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Email Address',
+                        prefixIcon: Icon(Icons.email_outlined, color: Colors.white70),
+                      ),
+                    );
+
+                    final phoneField = TextField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        prefixIcon: Icon(Icons.phone_outlined, color: Colors.white70),
+                      ),
+                    );
+
+                    if (isCompact) {
+                      return Column(
+                        children: [
+                          emailField,
+                          const SizedBox(height: 14),
+                          phoneField,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: emailField),
+                        const SizedBox(width: 16),
+                        Expanded(child: phoneField),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+
+                // 4. Status Message & Presets
                 TextField(
                   controller: _statusController,
                   style: const TextStyle(color: Colors.white),
@@ -248,16 +456,57 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                     prefixIcon: Icon(Icons.edit_note, color: Colors.white70),
                   ),
                 ),
-                const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF06B6D4),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: _quickStatusList.map((st) {
+                    final isSelected = _statusController.text == st;
+                    return ActionChip(
+                      label: Text(st, style: TextStyle(fontSize: 11, color: isSelected ? const Color(0xFF06B6D4) : Colors.white70)),
+                      backgroundColor: isSelected ? const Color(0xFF06B6D4).withValues(alpha: 0.2) : const Color(0xFF1E293B),
+                      side: BorderSide(color: isSelected ? const Color(0xFF06B6D4) : Colors.white12),
+                      onPressed: () {
+                        _statusController.text = st;
+                        setState(() {});
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 14),
+
+                // 5. Bio / About Me
+                TextField(
+                  controller: _bioController,
+                  maxLines: 3,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Bio & About You',
+                    alignLabelWithHint: true,
+                    prefixIcon: Icon(Icons.info_outline, color: Colors.white70),
                   ),
-                  icon: const Icon(Icons.save),
-                  label: const Text('Save Personalization'),
-                  onPressed: _saveProfile,
+                ),
+                const SizedBox(height: 24),
+
+                // Save All Profile Settings Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF06B6D4),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: _isSaving
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.save),
+                    label: Text(
+                      _isSaving ? 'Saving Changes...' : 'Save All Profile Settings',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    onPressed: _isSaving ? null : _saveProfile,
+                  ),
                 ),
               ],
             ),

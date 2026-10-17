@@ -226,6 +226,7 @@ class ApiService {
       conversationId: conversationId,
       senderId: me.id,
       senderName: me.displayName,
+      senderAvatarUrl: me.avatarUrl,
       content: content,
       type: type,
       mediaUrl: mediaUrl,
@@ -241,6 +242,7 @@ class ApiService {
         body: jsonEncode({
           'senderId': me.id,
           'senderName': me.displayName,
+          'senderAvatarUrl': me.avatarUrl,
           'content': content,
           'type': type.name.toUpperCase(),
           'mediaUrl': mediaUrl,
@@ -371,6 +373,109 @@ class ApiService {
         body: jsonEncode({'userId': me.id, 'status': status, 'note': note}),
       ).timeout(const Duration(seconds: 2));
     } catch (_) {}
+  }
+
+  // ==========================================
+  // PROFILE MANAGEMENT (EDIT EVERYTHING)
+  // ==========================================
+
+  static Future<UserModel> updateProfile({
+    String? displayName,
+    String? username,
+    String? email,
+    String? phone,
+    String? bio,
+    String? avatarUrl,
+    String? statusMessage,
+    String? themePreference,
+    String? appIconPreference,
+  }) async {
+    final me = currentUser;
+    final updated = UserModel(
+      id: me.id,
+      username: (username != null && username.isNotEmpty) ? username : me.username,
+      displayName: (displayName != null && displayName.isNotEmpty) ? displayName : me.displayName,
+      email: email ?? me.email,
+      phone: phone ?? me.phone,
+      bio: bio ?? me.bio,
+      avatarUrl: avatarUrl ?? me.avatarUrl,
+      statusMessage: statusMessage ?? me.statusMessage,
+      safetyScore: me.safetyScore,
+      isVerified: me.isVerified,
+      isOnline: me.isOnline,
+    );
+
+    currentUser = updated;
+
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/auth/profile/${me.id}'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          if (displayName != null) 'displayName': displayName,
+          if (username != null) 'username': username,
+          if (email != null) 'email': email,
+          if (phone != null) 'phone': phone,
+          if (bio != null) 'bio': bio,
+          if (avatarUrl != null) 'avatarUrl': avatarUrl,
+          if (statusMessage != null) 'statusMessage': statusMessage,
+          if (themePreference != null) 'themePreference': themePreference,
+          if (appIconPreference != null) 'appIconPreference': appIconPreference,
+        }),
+      ).timeout(const Duration(seconds: 4));
+
+      if (res.statusCode == 200) {
+        final serverUser = UserModel.fromJson(jsonDecode(res.body));
+        currentUser = serverUser;
+        return serverUser;
+      }
+    } catch (_) {}
+
+    return updated;
+  }
+
+  // ==========================================
+  // EMERGENCY CONTACT ACCOUNTS
+  // ==========================================
+
+  static final List<EmergencyContactModel> _localEmergencyContacts = [
+    EmergencyContactModel(
+      id: 'em_default_1',
+      name: 'Security Ops Guild',
+      accountOrEmail: 'secops@chatguard.io',
+      relationship: 'Security Team Account',
+      phone: '+1 (555) 019-2834',
+      notifyOnAlert: true,
+      createdAt: DateTime.now().subtract(const Duration(days: 1)),
+    ),
+  ];
+
+  static Future<List<EmergencyContactModel>> getEmergencyContacts() async {
+    return List<EmergencyContactModel>.from(_localEmergencyContacts);
+  }
+
+  static Future<EmergencyContactModel> addEmergencyContact({
+    required String name,
+    required String accountOrEmail,
+    required String relationship,
+    String? phone,
+    bool notifyOnAlert = true,
+  }) async {
+    final contact = EmergencyContactModel(
+      id: 'em_${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      accountOrEmail: accountOrEmail,
+      relationship: relationship,
+      phone: phone,
+      notifyOnAlert: notifyOnAlert,
+      createdAt: DateTime.now(),
+    );
+    _localEmergencyContacts.add(contact);
+    return contact;
+  }
+
+  static Future<void> removeEmergencyContact(String id) async {
+    _localEmergencyContacts.removeWhere((c) => c.id == id);
   }
 }
 

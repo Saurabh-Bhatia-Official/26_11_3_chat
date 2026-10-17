@@ -5,6 +5,7 @@ class UserModel {
   final String username;
   final String displayName;
   final String? email;
+  final String? phone;
   final String? avatarUrl;
   final String bio;
   final String statusMessage;
@@ -17,6 +18,7 @@ class UserModel {
     required this.username,
     required this.displayName,
     this.email,
+    this.phone,
     this.avatarUrl,
     this.bio = '',
     this.statusMessage = 'Available',
@@ -31,6 +33,7 @@ class UserModel {
       username: json['username'] ?? '',
       displayName: json['displayName'] ?? json['username'] ?? 'User',
       email: json['email'],
+      phone: json['phone'],
       avatarUrl: json['avatarUrl'],
       bio: json['bio'] ?? '',
       statusMessage: json['statusMessage'] ?? 'Available',
@@ -45,6 +48,7 @@ class UserModel {
     'username': username,
     'displayName': displayName,
     'email': email,
+    'phone': phone,
     'avatarUrl': avatarUrl,
     'bio': bio,
     'statusMessage': statusMessage,
@@ -101,6 +105,7 @@ class MessageModel {
   final String conversationId;
   final String senderId;
   final String senderName;
+  final String? senderAvatarUrl;
   final String content;
   final MessageType type;
   final String? mediaUrl;
@@ -115,6 +120,7 @@ class MessageModel {
     required this.conversationId,
     required this.senderId,
     required this.senderName,
+    this.senderAvatarUrl,
     required this.content,
     this.type = MessageType.text,
     this.mediaUrl,
@@ -143,6 +149,7 @@ class MessageModel {
       conversationId: json['conversationId'] ?? '',
       senderId: json['senderId'] ?? '',
       senderName: json['senderName'] ?? 'Member',
+      senderAvatarUrl: json['senderAvatarUrl'],
       content: json['content'] ?? '',
       type: parseType(json['type']),
       mediaUrl: json['mediaUrl'],
@@ -222,4 +229,48 @@ class GameRoomModel {
     required this.state,
     this.moveHistory = const [],
   });
+}
+
+class EmergencyContactModel {
+  final String id;
+  final String name;
+  final String accountOrEmail;
+  final String relationship;
+  final String? phone;
+  final bool notifyOnAlert;
+  final DateTime createdAt;
+
+  EmergencyContactModel({
+    required this.id,
+    required this.name,
+    required this.accountOrEmail,
+    required this.relationship,
+    this.phone,
+    this.notifyOnAlert = true,
+    required this.createdAt,
+  });
+
+  factory EmergencyContactModel.fromJson(Map<String, dynamic> json) {
+    return EmergencyContactModel(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      accountOrEmail: json['accountOrEmail'] ?? '',
+      relationship: json['relationship'] ?? 'Trusted Contact',
+      phone: json['phone'],
+      notifyOnAlert: json['notifyOnAlert'] ?? true,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'accountOrEmail': accountOrEmail,
+    'relationship': relationship,
+    'phone': phone,
+    'notifyOnAlert': notifyOnAlert,
+    'createdAt': createdAt.toIso8601String(),
+  };
 }

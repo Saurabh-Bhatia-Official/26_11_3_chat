@@ -104,6 +104,9 @@ public class AuthController {
     public ResponseEntity<?> updateProfile(@PathVariable UUID id, @RequestBody Map<String, Object> updates) {
         return userRepository.findById(id).map(user -> {
             if (updates.containsKey("displayName")) user.setDisplayName((String) updates.get("displayName"));
+            if (updates.containsKey("username")) user.setUsername((String) updates.get("username"));
+            if (updates.containsKey("email")) user.setEmail((String) updates.get("email"));
+            if (updates.containsKey("phone")) user.setPhone((String) updates.get("phone"));
             if (updates.containsKey("statusMessage")) user.setStatusMessage((String) updates.get("statusMessage"));
             if (updates.containsKey("bio")) user.setBio((String) updates.get("bio"));
             if (updates.containsKey("avatarUrl")) user.setAvatarUrl((String) updates.get("avatarUrl"));
