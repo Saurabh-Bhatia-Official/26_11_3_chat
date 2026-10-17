@@ -93,18 +93,20 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                 child: const Icon(Icons.palette, color: Color(0xFF8B5CF6), size: 32),
               ),
               const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Dynamic App Identity',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                  Text(
-                    'Personalize theme, launcher icon, display identity, and chat style',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Dynamic App Identity',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    Text(
+                      'Personalize theme, launcher icon, display identity, and chat style',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -82,32 +82,39 @@ class _SafetyGuardianViewState extends State<SafetyGuardianView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Banner & Safety Score
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.shield, color: Color(0xFF10B981), size: 32),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 650;
+              final infoWidget = Row(
                 children: [
-                  const Text(
-                    'Smart Safety Guardian',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.shield, color: Color(0xFF10B981), size: 32),
                   ),
-                  Text(
-                    'Transparent, disclosed in-app activity monitoring & risk mitigation',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Smart Safety Guardian',
+                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        Text(
+                          'Transparent, disclosed in-app activity monitoring & risk mitigation',
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
+              );
+
+              final actionBtn = ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
@@ -116,99 +123,144 @@ class _SafetyGuardianViewState extends State<SafetyGuardianView> {
                 icon: const Icon(Icons.verified_user, size: 18),
                 label: const Text('Emergency Check-in'),
                 onPressed: _triggerEmergencyBroadcast,
-              ),
-            ],
+              );
+
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    infoWidget,
+                    const SizedBox(height: 14),
+                    actionBtn,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: infoWidget),
+                  const SizedBox(width: 16),
+                  actionBtn,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
 
           // Security Posture Cards
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: GlassContainer(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    children: [
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          const SizedBox(
-                            width: 80,
-                            height: 80,
-                            child: CircularProgressIndicator(
-                              value: 0.98,
-                              strokeWidth: 8,
-                              color: Color(0xFF10B981),
-                              backgroundColor: Colors.white10,
-                            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isStacked = constraints.maxWidth < 750;
+              final postureCard = GlassContainer(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        const SizedBox(
+                          width: 80,
+                          height: 80,
+                          child: CircularProgressIndicator(
+                            value: 0.98,
+                            strokeWidth: 8,
+                            color: Color(0xFF10B981),
+                            backgroundColor: Colors.white10,
                           ),
-                          Text(
-                            '${ApiService.currentUser.safetyScore}%',
-                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 20),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Security Health: Excellent',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              '• Multi-factor authentication active\n• 0 unacknowledged critical alerts\n• Cloudinary signed uploads enabled',
-                              style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
-                            ),
-                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: GlassContainer(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Active Sessions',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Text(
+                          '${ApiService.currentUser.safetyScore}%',
+                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 20),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Windows Desktop (Active)', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          IconButton(
-                            icon: const Icon(Icons.power_settings_new, color: Color(0xFFEF4444), size: 18),
-                            onPressed: () => _terminateDeviceSession('Windows Chrome'),
-                            tooltip: 'Kill Session',
+                          Text(
+                            'Security Health: Excellent',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '• Multi-factor authentication active\n• 0 unacknowledged critical alerts\n• Cloudinary signed uploads enabled',
+                            style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
                           ),
                         ],
                       ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('iPhone 15 Pro (Safari)', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          IconButton(
-                            icon: const Icon(Icons.power_settings_new, color: Color(0xFFEF4444), size: 18),
-                            onPressed: () => _terminateDeviceSession('iPhone 15 Pro'),
-                            tooltip: 'Kill Session',
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              );
+
+              final sessionsCard = GlassContainer(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Active Sessions',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Windows Desktop (Active)',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.power_settings_new, color: Color(0xFFEF4444), size: 18),
+                          onPressed: () => _terminateDeviceSession('Windows Chrome'),
+                          tooltip: 'Kill Session',
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'iPhone 15 Pro (Safari)',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.power_settings_new, color: Color(0xFFEF4444), size: 18),
+                          onPressed: () => _terminateDeviceSession('iPhone 15 Pro'),
+                          tooltip: 'Kill Session',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+
+              if (isStacked) {
+                return Column(
+                  children: [
+                    postureCard,
+                    const SizedBox(height: 16),
+                    sessionsCard,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(flex: 3, child: postureCard),
+                  const SizedBox(width: 16),
+                  Expanded(flex: 2, child: sessionsCard),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
 
@@ -222,9 +274,11 @@ class _SafetyGuardianViewState extends State<SafetyGuardianView> {
                   children: [
                     Icon(Icons.link, color: Color(0xFF06B6D4)),
                     SizedBox(width: 8),
-                    Text(
-                      'Live Phishing & Malicious Link Interceptor',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    Expanded(
+                      child: Text(
+                        'Live Phishing & Malicious Link Interceptor',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),
@@ -285,12 +339,13 @@ class _SafetyGuardianViewState extends State<SafetyGuardianView> {
                               color: (_scanResult!['isSuspicious'] as bool) ? const Color(0xFFEF4444) : const Color(0xFF10B981),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              'Risk Score: ${_scanResult!['riskScore']}/100 — ' +
-                                  ((_scanResult!['isSuspicious'] as bool) ? 'HIGH THREAT DETECTED' : 'CLEAN & SAFE'),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: (_scanResult!['isSuspicious'] as bool) ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                            Expanded(
+                              child: Text(
+                                'Risk Score: ${_scanResult!['riskScore']}/100 — ${(_scanResult!['isSuspicious'] as bool) ? 'HIGH THREAT DETECTED' : 'CLEAN & SAFE'}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: (_scanResult!['isSuspicious'] as bool) ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                                ),
                               ),
                             ),
                           ],
