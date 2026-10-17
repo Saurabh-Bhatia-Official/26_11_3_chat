@@ -4,6 +4,7 @@ import com.chatgen.backend.model.Conversation;
 import com.chatgen.backend.model.Message;
 import com.chatgen.backend.repository.ConversationRepository;
 import com.chatgen.backend.repository.MessageRepository;
+import com.chatgen.backend.repository.UserRepository;
 import com.chatgen.backend.service.SafetyAnalyzerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
