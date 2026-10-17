@@ -379,18 +379,20 @@ class MessageBubble extends StatelessWidget {
                         ],
                       ],
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-          if (isMe) ...[
-            const SizedBox(width: 8),
-            avatarWidget,
           ],
-        ],
+        ),
       ),
-    );
+      if (isMe) ...[
+        const SizedBox(width: 8),
+        avatarWidget,
+      ],
+    ],
+  ),
+);
   }
 
   Widget _buildContentText(BuildContext context, Color textColor) {

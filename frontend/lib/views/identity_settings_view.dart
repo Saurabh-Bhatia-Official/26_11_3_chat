@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/models.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_container.dart';
@@ -29,6 +28,13 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
 
   bool _isSaving = false;
   String selectedIcon = 'neon_pulse';
+
+  final List<Map<String, dynamic>> icons = [
+    {'id': 'neon_pulse', 'name': 'Neon Pulse', 'icon': Icons.bolt, 'color': const Color(0xFF06B6D4)},
+    {'id': 'cyber_shield', 'name': 'Cyber Shield', 'icon': Icons.security, 'color': const Color(0xFF10B981)},
+    {'id': 'cosmic_night', 'name': 'Cosmic Night', 'icon': Icons.dark_mode, 'color': const Color(0xFF8B5CF6)},
+    {'id': 'solar_flare', 'name': 'Solar Flare', 'icon': Icons.local_fire_department, 'color': const Color(0xFFF59E0B)},
+  ];
 
   final List<String> _avatarPresets = [
     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
