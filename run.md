@@ -16,13 +16,15 @@ Ensure you have installed:
 
 ## 1. 🚀 Quick Start (Local Development)
 
-### A. Run Spring Boot Backend (Port 8080)
+### A. Run Spring Boot Backend (Port 8085)
 Open a terminal in the root directory:
 ```bash
 cd backend
 mvn spring-boot:run
 ```
-> **Note**: Starts automatically with an in-memory H2 database fallback with sample seed users (`alex_rivers`, `elena_rostova`, `marcus_vance`). If Supabase credentials are configured in `.env` or `application.yml`, it will automatically connect to Supabase PostgreSQL.
+> **Note on Port**: Configured to port `8085` by default (avoiding conflicts with existing local web servers like Apache/HTTPD on port 8080). You can also run with custom port: `mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8085"`.
+> 
+> Starts automatically with an in-memory H2 database fallback with sample seed users (`alex_rivers`, `elena_rostova`, `marcus_vance`). If Supabase credentials are configured in `.env` or `application.yml`, it will automatically connect to Supabase PostgreSQL.
 
 ### B. Run Flutter Client (Web / Chrome)
 Open a second terminal:

@@ -5,7 +5,7 @@ import '../models/models.dart';
 
 class ApiService {
   // Configurable backend URL. On Vercel, can point to deployed Spring Boot server
-  static String baseUrl = 'http://localhost:8080/api';
+  static String baseUrl = 'http://localhost:8085/api';
 
   static UserModel currentUser = UserModel(
     id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
