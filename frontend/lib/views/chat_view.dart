@@ -143,12 +143,36 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
+  String get _contactName {
+    final me = ApiService.currentUser;
+    if (!widget.conversation.isGroup) {
+      final otherMsg = _messages.cast<MessageModel?>().firstWhere(
+        (m) => m != null && m.senderId != me.id && m.senderName.isNotEmpty,
+        orElse: () => null,
+      );
+      if (otherMsg != null) return otherMsg.senderName;
+    }
+    return widget.conversation.getTitleForUser(me);
+  }
+
+  String? get _contactAvatar {
+    final me = ApiService.currentUser;
+    if (!widget.conversation.isGroup) {
+      final otherMsg = _messages.cast<MessageModel?>().firstWhere(
+        (m) => m != null && m.senderId != me.id && m.senderAvatarUrl != null && m.senderAvatarUrl!.isNotEmpty,
+        orElse: () => null,
+      );
+      if (otherMsg != null) return otherMsg.senderAvatarUrl;
+    }
+    return widget.conversation.getAvatarForUser(me);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isInCall) {
       return CallModal(
-        title: widget.conversation.title,
-        avatarUrl: widget.conversation.avatarUrl ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+        title: _contactName,
+        avatarUrl: _contactAvatar ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         isVideo: _isCallVideo,
         onEndCall: () => setState(() => _isInCall = false),
       );
@@ -163,8 +187,8 @@ class _ChatViewState extends State<ChatView> {
           child: Row(
             children: [
               AvatarBadge(
-                avatarUrl: widget.conversation.avatarUrl,
-                name: widget.conversation.title,
+                avatarUrl: _contactAvatar,
+                name: _contactName,
                 radius: 20,
               ),
               const SizedBox(width: 12),
@@ -174,9 +198,12 @@ class _ChatViewState extends State<ChatView> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          widget.conversation.title,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                        Flexible(
+                          child: Text(
+                            _contactName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                          ),
                         ),
                         if (widget.conversation.isGroup) ...[
                           const SizedBox(width: 6),
@@ -196,9 +223,12 @@ class _ChatViewState extends State<ChatView> {
                       children: [
                         const Icon(Icons.shield_outlined, size: 12, color: Color(0xFF10B981)),
                         const SizedBox(width: 4),
-                        Text(
-                          'Protected by Smart Safety Guardian',
-                          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 11),
+                        Flexible(
+                          child: Text(
+                            'Protected by Smart Safety Guardian',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 11),
+                          ),
                         ),
                       ],
                     ),

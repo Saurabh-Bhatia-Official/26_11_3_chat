@@ -46,16 +46,33 @@ void main() {
     test('ConversationModel participants and preview', () {
       final conv = ConversationModel(
         id: 'c1',
-        title: 'Chat with Bob',
-        participant1Id: 'u1',
-        participant2Id: 'u2',
+        title: 'saurabh',
+        participant1Id: 'u_shailesh',
+        participant1Name: 'shailesh',
+        participant1Avatar: 'https://example.com/shailesh.png',
+        participant2Id: 'u_saurabh',
+        participant2Name: 'saurabh',
+        participant2Avatar: 'https://example.com/saurabh.png',
         lastMessagePreview: 'Hello Bob!',
         lastMessageAt: DateTime.now(),
         unreadCount: 1,
       );
 
-      expect(conv.participant1Id, equals('u1'));
-      expect(conv.participant2Id, equals('u2'));
+      final userShailesh = UserModel(
+        id: 'u_shailesh',
+        username: 'shailesh',
+        displayName: 'shailesh',
+      );
+      final userSaurabh = UserModel(
+        id: 'u_saurabh',
+        username: 'saurabh',
+        displayName: 'saurabh',
+      );
+
+      expect(conv.getTitleForUser(userShailesh), equals('saurabh'));
+      expect(conv.getTitleForUser(userSaurabh), equals('shailesh'));
+      expect(conv.getAvatarForUser(userShailesh), equals('https://example.com/saurabh.png'));
+      expect(conv.getAvatarForUser(userSaurabh), equals('https://example.com/shailesh.png'));
       expect(conv.unreadCount, equals(1));
     });
 

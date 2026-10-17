@@ -64,7 +64,11 @@ class ConversationModel {
   final bool isGroup;
   final String? avatarUrl;
   final String? participant1Id;
+  final String? participant1Name;
+  final String? participant1Avatar;
   final String? participant2Id;
+  final String? participant2Name;
+  final String? participant2Avatar;
   final String? lastMessagePreview;
   final DateTime lastMessageAt;
   final int unreadCount;
@@ -75,7 +79,11 @@ class ConversationModel {
     this.isGroup = false,
     this.avatarUrl,
     this.participant1Id,
+    this.participant1Name,
+    this.participant1Avatar,
     this.participant2Id,
+    this.participant2Name,
+    this.participant2Avatar,
     this.lastMessagePreview,
     required this.lastMessageAt,
     this.unreadCount = 0,
@@ -88,13 +96,54 @@ class ConversationModel {
       isGroup: json['isGroup'] ?? false,
       avatarUrl: json['avatarUrl'],
       participant1Id: json['participant1Id'],
+      participant1Name: json['participant1Name'],
+      participant1Avatar: json['participant1Avatar'],
       participant2Id: json['participant2Id'],
+      participant2Name: json['participant2Name'],
+      participant2Avatar: json['participant2Avatar'],
       lastMessagePreview: json['lastMessagePreview'],
       lastMessageAt: json['lastMessageAt'] != null
           ? DateTime.tryParse(json['lastMessageAt']) ?? DateTime.now()
           : DateTime.now(),
       unreadCount: json['unreadCount'] ?? 0,
     );
+  }
+
+  String getTitleForUser(UserModel me) {
+    if (isGroup) return title;
+    if (participant1Id != null && participant2Id != null) {
+      if (me.id == participant1Id && participant2Name != null && participant2Name!.isNotEmpty) {
+        return participant2Name!;
+      }
+      if (me.id == participant2Id && participant1Name != null && participant1Name!.isNotEmpty) {
+        return participant1Name!;
+      }
+    }
+    final myName = me.displayName.toLowerCase().trim();
+    final myUser = me.username.toLowerCase().trim();
+    final t = title.toLowerCase().trim();
+    if (t == myName || t == myUser) {
+      if (participant1Name != null && participant1Name!.isNotEmpty && participant1Name!.toLowerCase().trim() != myName) {
+        return participant1Name!;
+      }
+      if (participant2Name != null && participant2Name!.isNotEmpty && participant2Name!.toLowerCase().trim() != myName) {
+        return participant2Name!;
+      }
+    }
+    return title;
+  }
+
+  String? getAvatarForUser(UserModel me) {
+    if (isGroup) return avatarUrl;
+    if (participant1Id != null && participant2Id != null) {
+      if (me.id == participant1Id && participant2Avatar != null && participant2Avatar!.isNotEmpty) {
+        return participant2Avatar;
+      }
+      if (me.id == participant2Id && participant1Avatar != null && participant1Avatar!.isNotEmpty) {
+        return participant1Avatar;
+      }
+    }
+    return avatarUrl;
   }
 }
 

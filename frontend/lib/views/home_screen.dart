@@ -261,9 +261,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildConversationListPane() {
+    final me = ApiService.currentUser;
     final filtered = _conversations.where((c) {
       if (_searchQuery.isEmpty) return true;
-      return c.title.toLowerCase().contains(_searchQuery.toLowerCase());
+      final title = c.getTitleForUser(me);
+      return title.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
 
     return Column(
@@ -336,6 +338,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemBuilder: (context, index) {
                         final item = filtered[index];
                         final isSelected = _selectedConversation?.id == item.id;
+                        final contactName = item.getTitleForUser(me);
+                        final contactAvatar = item.getAvatarForUser(me);
 
                         return Container(
                           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
@@ -346,15 +350,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           child: ListTile(
                             leading: AvatarBadge(
-                              avatarUrl: item.avatarUrl,
-                              name: item.title,
+                              avatarUrl: contactAvatar,
+                              name: contactName,
                               radius: 20,
                             ),
                             title: Row(
                               children: [
                                 Expanded(
                                   child: Text(
-                                    item.title,
+                                    contactName,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,

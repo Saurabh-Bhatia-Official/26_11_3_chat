@@ -22,8 +22,14 @@ public class Conversation {
     private UUID createdBy;
 
     private UUID participant1Id;
+    private String participant1Name;
+    @Column(columnDefinition = "TEXT")
+    private String participant1Avatar;
 
     private UUID participant2Id;
+    private String participant2Name;
+    @Column(columnDefinition = "TEXT")
+    private String participant2Avatar;
 
     @Column(columnDefinition = "TEXT")
     private String lastMessagePreview;
@@ -52,8 +58,20 @@ public class Conversation {
     public UUID getParticipant1Id() { return participant1Id; }
     public void setParticipant1Id(UUID participant1Id) { this.participant1Id = participant1Id; }
 
+    public String getParticipant1Name() { return participant1Name; }
+    public void setParticipant1Name(String participant1Name) { this.participant1Name = participant1Name; }
+
+    public String getParticipant1Avatar() { return participant1Avatar; }
+    public void setParticipant1Avatar(String participant1Avatar) { this.participant1Avatar = participant1Avatar; }
+
     public UUID getParticipant2Id() { return participant2Id; }
     public void setParticipant2Id(UUID participant2Id) { this.participant2Id = participant2Id; }
+
+    public String getParticipant2Name() { return participant2Name; }
+    public void setParticipant2Name(String participant2Name) { this.participant2Name = participant2Name; }
+
+    public String getParticipant2Avatar() { return participant2Avatar; }
+    public void setParticipant2Avatar(String participant2Avatar) { this.participant2Avatar = participant2Avatar; }
 
     public String getLastMessagePreview() { return lastMessagePreview; }
     public void setLastMessagePreview(String lastMessagePreview) { this.lastMessagePreview = lastMessagePreview; }

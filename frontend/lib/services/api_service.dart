@@ -105,12 +105,18 @@ class ApiService {
   // USERS & CONVERSATIONS
   // ==========================================
 
+  static final Map<String, UserModel> userCache = {};
+
   static Future<List<UserModel>> getUsers() async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/auth/users')).timeout(const Duration(seconds: 3));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        return list.map((item) => UserModel.fromJson(item)).toList();
+        final users = list.map((item) => UserModel.fromJson(item)).toList();
+        for (final u in users) {
+          userCache[u.id] = u;
+        }
+        return users;
       }
     } catch (_) {}
     return [];
@@ -145,7 +151,11 @@ class ApiService {
       'avatarUrl': targetUser.avatarUrl,
       'createdBy': me.id,
       'participant1Id': me.id,
+      'participant1Name': me.displayName,
+      'participant1Avatar': me.avatarUrl,
       'participant2Id': targetUser.id,
+      'participant2Name': targetUser.displayName,
+      'participant2Avatar': targetUser.avatarUrl,
     };
 
     try {
@@ -170,7 +180,11 @@ class ApiService {
       isGroup: false,
       avatarUrl: targetUser.avatarUrl,
       participant1Id: me.id,
+      participant1Name: me.displayName,
+      participant1Avatar: me.avatarUrl,
       participant2Id: targetUser.id,
+      participant2Name: targetUser.displayName,
+      participant2Avatar: targetUser.avatarUrl,
       lastMessagePreview: 'Started a new conversation',
       lastMessageAt: DateTime.now(),
     );
