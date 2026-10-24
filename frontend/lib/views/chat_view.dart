@@ -12,6 +12,7 @@ import '../widgets/avatar_badge.dart';
 import '../widgets/call_modal.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/message_bubble.dart';
+import '../widgets/network_status_banner.dart';
 import 'games/chess_game_view.dart';
 import 'games/ludo_game_view.dart';
 import 'games/snakes_ladders_view.dart';
@@ -168,16 +169,31 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
     }
   }
 
+  String? _messagesError;
+
   void _loadMessages() async {
-    setState(() => _isLoading = true);
-    final msgs = await ApiService.getMessages(widget.conversation.id);
-    if (mounted) {
-      _syncGameFromMessages(msgs);
-      setState(() {
-        _messages = List<MessageModel>.from(msgs);
-        _isLoading = false;
-      });
-      _scrollToBottom();
+    setState(() {
+      _isLoading = true;
+      _messagesError = null;
+    });
+    try {
+      final msgs = await ApiService.getMessages(widget.conversation.id);
+      if (mounted) {
+        _syncGameFromMessages(msgs);
+        setState(() {
+          _messages = List<MessageModel>.from(msgs);
+          _messagesError = null;
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _messagesError = e.toString().replaceAll('Exception: ', '').trim();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -292,27 +308,50 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
       _textController.clear();
     }
 
-    final sent = await ApiService.sendMessage(
-      widget.conversation.id,
-      content,
-      type: type,
-      mediaUrl: mediaUrl,
-    );
+    try {
+      final sent = await ApiService.sendMessage(
+        widget.conversation.id,
+        content,
+        type: type,
+        mediaUrl: mediaUrl,
+      );
 
-    if (mounted) {
-      setState(() {
-        final exists = _messages.any((m) =>
-            m.id == sent.id ||
-            ((m.id.startsWith('msg_') || sent.id.startsWith('msg_')) &&
-                m.senderId == sent.senderId &&
-                m.content == sent.content &&
-                m.createdAt.difference(sent.createdAt).abs().inSeconds <= 3));
-        if (!exists) {
-          _messages.add(sent);
-        }
-      });
-      _scrollToBottom();
-      widget.onActivity?.call();
+      if (mounted) {
+        setState(() {
+          final exists = _messages.any((m) =>
+              m.id == sent.id ||
+              ((m.id.startsWith('msg_') || sent.id.startsWith('msg_')) &&
+                  m.senderId == sent.senderId &&
+                  m.content == sent.content &&
+                  m.createdAt.difference(sent.createdAt).abs().inSeconds <= 3));
+          if (!exists) {
+            _messages.add(sent);
+          }
+        });
+        _scrollToBottom();
+        widget.onActivity?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMsg = e.toString().replaceAll('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  errorMsg.contains('Internet') ? Icons.wifi_off_rounded : Icons.dns_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(errorMsg)),
+              ],
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -621,11 +660,20 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('⚠️ Cloudinary voice upload failed. Please verify Cloudinary credentials in Render.'),
+                content: Text('⚠️ Voice upload failed. Please try again.'),
                 backgroundColor: Colors.redAccent,
               ),
             );
           }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().replaceAll('Exception: ', '')),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
         }
       } finally {
         if (mounted) {
@@ -657,11 +705,20 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('⚠️ Cloudinary image upload failed. Please verify Cloudinary credentials in Render.'),
+                content: Text('⚠️ Image upload failed. Please try again.'),
                 backgroundColor: Colors.redAccent,
               ),
             );
           }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().replaceAll('Exception: ', '')),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
         }
       } finally {
         if (mounted) {
@@ -693,11 +750,20 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('⚠️ Cloudinary document upload failed. Please verify Cloudinary credentials in Render.'),
+                content: Text('⚠️ Document upload failed. Please try again.'),
                 backgroundColor: Colors.redAccent,
               ),
             );
           }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().replaceAll('Exception: ', '')),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
         }
       } finally {
         if (mounted) {
@@ -999,6 +1065,7 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
 
         return Column(
           children: [
+            NetworkStatusBanner(onRetry: _loadMessages),
             // Top Conversation Header Bar
             _buildHeaderBar(),
 
@@ -1456,6 +1523,40 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
   Widget _buildMessageList() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
+    if (_messagesError != null && _messages.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _messagesError!.contains('internet') ? Icons.wifi_off_rounded : Icons.dns_outlined,
+                size: 40,
+                color: _messagesError!.contains('internet') ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _messagesError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF06B6D4),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                ),
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Try Again'),
+                onPressed: _loadMessages,
+              ),
+            ],
+          ),
+        ),
+      );
     }
     final displayList = _displayMessages;
     return ListView.builder(

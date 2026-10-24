@@ -29,3 +29,6 @@ frontend/build/ios/
 frontend/build/windows/
 frontend/build/linux/
 frontend/build/macos/
+
+# Build artifacts
+artifacts/

@@ -1,6 +1,6 @@
 # Run Guide: Next-Gen Cross-Platform Chat Application
 
-This guide contains all execution commands for running the **Flutter Frontend**, **Spring Boot Backend**, **Neon PostgreSQL Database**, and deploying to **Vercel**.
+This guide contains all execution commands for running the **Flutter Frontend**, **Spring Boot Backend**, **Supabase PostgreSQL Database**, and deploying to **Vercel**.
 
 ---
 
@@ -73,7 +73,7 @@ java -jar target/chat-backend-1.0.0.jar
   curl https://two6-11-3-chat.onrender.com/api/system/branding
   ```
 
-> **Database Connection**: Strictly connects to the cloud **Neon PostgreSQL** database configured in `application.yml` and environment variables. Local database has been completely removed.
+> **Database Connection**: Strictly connects to the cloud **Supabase Cloud PostgreSQL** database configured in `application.yml` and environment variables. Local database has been completely removed.
 
 ---
 
@@ -91,6 +91,18 @@ cd frontend && flutter run -d chrome --dart-define-from-file=.env
 ```bash
 cd frontend && flutter run -d windows --dart-define-from-file=.env
 ```
+
+#### 2. Build Windows Setup Wizard Installer (.exe):
+To generate the standalone installer executable (`chatguard-windows-setup.exe`) that installs via the classic **"Next > Next > Install > Finish"** setup wizard:
+- **Windows Batch (double-click or CMD)**:
+  ```cmd
+  build-windows-installer.bat
+  ```
+- **Windows PowerShell**:
+  ```powershell
+  .\build-windows-installer.ps1
+  ```
+*Output artifact:* `artifacts/windows/chatguard-windows-setup.exe` (includes desktop icon, Start menu shortcut, and uninstaller).
 
 ---
 
@@ -206,7 +218,7 @@ npx vercel --prod
 The project uses dedicated `.env` configuration files located directly inside each subproject:
 
 ### A. Backend (`backend/.env` & `backend/.env.example`)
-Configures Spring Boot, Neon PostgreSQL, Cloudinary, and Security:
+Configures Spring Boot, Supabase PostgreSQL, Cloudinary, and Security:
 ```properties
 # Supabase PostgreSQL Database
 DB_HOST=db.vtxwvilrvtiklqmnbenh.supabase.co

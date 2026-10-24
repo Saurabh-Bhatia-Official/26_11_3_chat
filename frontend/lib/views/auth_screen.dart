@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_container.dart';
+import '../widgets/network_status_banner.dart';
 import '../widgets/software_logo_widget.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -148,11 +149,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
     return Scaffold(
       backgroundColor: const Color(0xFF090D16),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const NetworkStatusBanner(),
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -255,6 +261,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ),
         ),
       ),
+    ),
+    ],
+    ),
+    ),
     );
   }
 

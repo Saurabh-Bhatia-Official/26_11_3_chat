@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/avatar_badge.dart';
 import '../widgets/call_modal.dart';
+import '../widgets/network_status_banner.dart';
 import '../widgets/software_logo_widget.dart';
 import 'chat_view.dart';
 import 'identity_settings_view.dart';
@@ -34,6 +35,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ConversationModel> _conversations = [];
   ConversationModel? _selectedConversation;
   bool _isLoading = true;
+  String? _conversationsError;
   String _searchQuery = '';
   Timer? _conversationsSyncTimer;
   bool _isSyncingConversations = false;
@@ -191,18 +193,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _loadConversations() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _conversationsError = null;
+    });
     // Populate user cache in background so usernames are available for matching
     ApiService.getUsers();
-    final list = await ApiService.getConversations();
-    if (mounted) {
-      setState(() {
-        _conversations = list;
-        if (list.isNotEmpty && _selectedConversation == null) {
-          _selectedConversation = list.first;
-        }
-        _isLoading = false;
-      });
+    try {
+      final list = await ApiService.getConversations();
+      if (mounted) {
+        setState(() {
+          _conversations = list;
+          _conversationsError = null;
+          if (list.isNotEmpty && _selectedConversation == null) {
+            _selectedConversation = list.first;
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _conversationsError = e.toString().replaceAll('Exception: ', '').trim();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -262,19 +277,26 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final isWide = MediaQuery.of(context).size.width > 800;
     return Scaffold(
-      body: Row(
+      body: Column(
         children: [
-          // Left Icon Navigation Rail with dynamic user avatar
-          ValueListenableBuilder<UserModel?>(
-            valueListenable: ApiService.currentUserNotifier,
-            builder: (context, user, _) {
-              return _buildNavRail(theme, user ?? ApiService.currentUser);
-            },
-          ),
-
-          // Main Interactive Layout
+          NetworkStatusBanner(onRetry: _loadConversations),
           Expanded(
-            child: _buildMainContent(theme, isWide),
+            child: Row(
+              children: [
+                // Left Icon Navigation Rail with dynamic user avatar
+                ValueListenableBuilder<UserModel?>(
+                  valueListenable: ApiService.currentUserNotifier,
+                  builder: (context, user, _) {
+                    return _buildNavRail(theme, user ?? ApiService.currentUser);
+                  },
+                ),
+
+                // Main Interactive Layout
+                Expanded(
+                  child: _buildMainContent(theme, isWide),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -547,31 +569,68 @@ class _HomeScreenState extends State<HomeScreen> {
         Expanded(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : filtered.isEmpty
+              : (_conversationsError != null && _conversations.isEmpty)
                   ? Center(
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.chat_bubble_outline, size: 36, color: Colors.white.withOpacity(0.2)),
+                            Icon(
+                              _conversationsError!.contains('internet')
+                                  ? Icons.wifi_off_rounded
+                                  : Icons.dns_outlined,
+                              size: 38,
+                              color: _conversationsError!.contains('internet')
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFFF59E0B),
+                            ),
                             const SizedBox(height: 12),
                             Text(
-                              _searchQuery.isNotEmpty
-                                  ? 'No chat with username "@${_searchQuery.replaceAll('@', '')}"'
-                                  : 'No chats yet',
-                              style: const TextStyle(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Tap the + button above to chat with any registered user.',
+                              _conversationsError!,
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.white38, fontSize: 12),
+                              style: const TextStyle(color: Colors.white70, fontSize: 13),
+                            ),
+                            const SizedBox(height: 14),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF06B6D4),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              ),
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('Try Again'),
+                              onPressed: _loadConversations,
                             ),
                           ],
                         ),
                       ),
                     )
+                  : filtered.isEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.chat_bubble_outline, size: 36, color: Colors.white.withOpacity(0.2)),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _searchQuery.isNotEmpty
+                                      ? 'No chat with username "@${_searchQuery.replaceAll('@', '')}"'
+                                      : 'No chats yet',
+                                  style: const TextStyle(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Tap the + button above to chat with any registered user.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.white38, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {

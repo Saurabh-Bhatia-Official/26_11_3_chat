@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 import 'app_branding/app_branding.dart';
+import 'network_service.dart';
+import 'connectivity/connectivity_platform.dart';
 
 class ApiService {
   // Configurable backend URL (reads from frontend/.env or defaults to Render backend)
@@ -194,6 +196,9 @@ class ApiService {
     // Ensure we start with default software name, app icon, and website branding before login
     resetBrandingToDefault();
 
+    // Initialize network and connectivity monitoring
+    NetworkService.initialize(baseUrl: baseUrl);
+
     try {
       final prefs = await SharedPreferences.getInstance();
 
@@ -311,14 +316,13 @@ class ApiService {
     required String password,
     bool rememberMe = true,
   }) async {
-    try {
-      final res = await http.post(
+    return NetworkService.execute<UserModel>(
+      request: () => http.post(
         Uri.parse('$baseUrl/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username.trim(), 'password': password}),
-      ).timeout(const Duration(seconds: 4));
-
-      if (res.statusCode == 200) {
+      ).timeout(const Duration(seconds: 5)),
+      onSuccess: (res) async {
         final data = jsonDecode(res.body);
         final token = data['token']?.toString();
         if (token != null && token.isNotEmpty) {
@@ -352,34 +356,9 @@ class ApiService {
 
         syncBrandingToPlatform();
         return user;
-      } else {
-        final err = jsonDecode(res.body);
-        throw Exception(err['error'] ?? 'Login failed (${res.statusCode})');
-      }
-    } catch (e) {
-      if (e.toString().contains('User not found') || e.toString().contains('Incorrect password')) {
-        rethrow;
-      }
-      // If backend is unreachable, create fallback session for user and persist
-      final fallbackUser = UserModel(
-        id: 'usr_${username.trim()}',
-        username: username.trim(),
-        displayName: username.trim(),
-      );
-      _localConversations.clear();
-      _localMessages.clear();
-      currentUser = fallbackUser;
-      userCache[fallbackUser.id] = fallbackUser;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyUser, jsonEncode(fallbackUser.toJson()));
-      if (rememberMe) {
-        await prefs.setString(_keySavedUsername, username.trim());
-        await prefs.setString(_keySavedPassword, password);
-        await prefs.setBool(_keyRememberMe, true);
-      }
-      return fallbackUser;
-    }
+      },
+      defaultErrorMessage: 'Login failed',
+    );
   }
 
   static Future<UserModel> signup({
@@ -389,8 +368,8 @@ class ApiService {
     required String password,
     bool rememberMe = true,
   }) async {
-    try {
-      final res = await http.post(
+    return NetworkService.execute<UserModel>(
+      request: () => http.post(
         Uri.parse('$baseUrl/auth/signup'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -399,9 +378,8 @@ class ApiService {
           'email': email.trim().isNotEmpty ? email.trim() : '${username.trim()}@chat.io',
           'password': password,
         }),
-      ).timeout(const Duration(seconds: 4));
-
-      if (res.statusCode == 200) {
+      ).timeout(const Duration(seconds: 5)),
+      onSuccess: (res) async {
         final data = jsonDecode(res.body);
         final token = data['token']?.toString();
         if (token != null && token.isNotEmpty) {
@@ -430,29 +408,9 @@ class ApiService {
 
         syncBrandingToPlatform();
         return user;
-      } else {
-        final err = jsonDecode(res.body);
-        throw Exception(err['error'] ?? 'Sign up failed (${res.statusCode})');
-      }
-    } catch (e) {
-      if (e.toString().contains('already registered') || e.toString().contains('is required')) {
-        rethrow;
-      }
-      final fallbackUser = UserModel(
-        id: 'usr_${username.trim()}',
-        username: username.trim(),
-        displayName: displayName.trim().isNotEmpty ? displayName.trim() : username.trim(),
-        email: email.trim(),
-      );
-      _localConversations.clear();
-      _localMessages.clear();
-      currentUser = fallbackUser;
-      userCache[fallbackUser.id] = fallbackUser;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyUser, jsonEncode(fallbackUser.toJson()));
-      return fallbackUser;
-    }
+      },
+      defaultErrorMessage: 'Sign up failed',
+    );
   }
 
   static Future<void> logout() async {
@@ -486,10 +444,17 @@ class ApiService {
           return data['url'] as String;
         }
       } else {
-        debugPrint('Cloudinary upload returned status ${response.statusCode}: ${response.body}');
+        final err = await NetworkService.getErrorMessage(null, response: response);
+        throw BackendApplicationException(err, statusCode: response.statusCode);
       }
     } catch (e) {
-      debugPrint('Cloudinary upload error: $e');
+      if (e is AppException) rethrow;
+      final hasInternet = await ConnectivityPlatform.isInternetConnected();
+      if (!hasInternet) {
+        throw NoInternetException();
+      } else {
+        throw ServerUnavailableException();
+      }
     }
     return null;
   }
@@ -534,35 +499,39 @@ class ApiService {
     return [];
   }
 
-  static Future<List<ConversationModel>> getConversations() async {
+  static Future<List<ConversationModel>> getConversations({bool throwOnError = false}) async {
     try {
-      final user = currentUser;
-      final userId = user.id;
-      final uuidRegex = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
-      final isValidUuid = uuidRegex.hasMatch(userId);
+      return await NetworkService.execute<List<ConversationModel>>(
+        request: () {
+          final user = currentUser;
+          final userId = user.id;
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final uri = Uri.parse('$baseUrl/chat/conversations?userId=$userId&_t=$timestamp');
 
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final uri = Uri.parse('$baseUrl/chat/conversations?userId=$userId&_t=$timestamp');
-
-      final res = await http.get(
-        uri,
-        headers: {
-          ...authHeaders,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
+          return http.get(
+            uri,
+            headers: {
+              ...authHeaders,
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0',
+            },
+          ).timeout(const Duration(seconds: 8));
         },
-      ).timeout(const Duration(seconds: 8));
-
-      if (res.statusCode == 200) {
-        final List list = jsonDecode(res.body);
-        final convs = list.map((item) => ConversationModel.fromJson(item)).toList();
-        _localConversations.clear();
-        _localConversations.addAll(convs);
-        return convs;
+        onSuccess: (res) {
+          final List list = jsonDecode(res.body);
+          final convs = list.map((item) => ConversationModel.fromJson(item)).toList();
+          _localConversations.clear();
+          _localConversations.addAll(convs);
+          return convs;
+        },
+      );
+    } catch (e) {
+      if (throwOnError || _localConversations.isEmpty) {
+        rethrow;
       }
-    } catch (_) {}
-    return List<ConversationModel>.from(_localConversations);
+      return List<ConversationModel>.from(_localConversations);
+    }
   }
 
   static Future<ConversationModel> createConversation({
@@ -582,42 +551,23 @@ class ApiService {
       'participant2Avatar': targetUser.avatarUrl,
     };
 
-    try {
-      final res = await http.post(
+    return NetworkService.execute<ConversationModel>(
+      request: () => http.post(
         Uri.parse('$baseUrl/chat/conversations'),
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 8));
-
-      if (res.statusCode == 200) {
+      ).timeout(const Duration(seconds: 8)),
+      onSuccess: (res) {
         final conv = ConversationModel.fromJson(jsonDecode(res.body));
         _localConversations.removeWhere((c) => c.id == conv.id);
         _localConversations.insert(0, conv);
         return conv;
-      }
-    } catch (_) {}
-
-    // Fallback local conversation
-    final fallbackConv = ConversationModel(
-      id: 'conv_${targetUser.id}',
-      title: targetUser.displayName,
-      isGroup: false,
-      avatarUrl: targetUser.avatarUrl,
-      participant1Id: me.id,
-      participant1Name: me.displayName,
-      participant1Avatar: me.avatarUrl,
-      participant2Id: targetUser.id,
-      participant2Name: targetUser.displayName,
-      participant2Avatar: targetUser.avatarUrl,
-      lastMessagePreview: 'Started a new conversation',
-      lastMessageAt: DateTime.now(),
+      },
+      defaultErrorMessage: 'Failed to create conversation',
     );
-    _localConversations.removeWhere((c) => c.id == fallbackConv.id);
-    _localConversations.insert(0, fallbackConv);
-    return fallbackConv;
   }
 
   static Future<bool> deleteConversation(String conversationId) async {
@@ -719,8 +669,8 @@ class ApiService {
     _localMessages[conversationId]!.add(finalMsg);
 
     // Post to Spring Boot backend
-    try {
-      final res = await http.post(
+    finalMsg = await NetworkService.execute<MessageModel>(
+      request: () => http.post(
         Uri.parse('$baseUrl/chat/conversations/$conversationId/messages'),
         headers: {
           'Content-Type': 'application/json',
@@ -734,15 +684,15 @@ class ApiService {
           'type': type == MessageType.gameInvite ? 'GAME_INVITE' : type.name.toUpperCase(),
           'mediaUrl': mediaUrl,
         }),
-      ).timeout(const Duration(seconds: 8));
-
-      if (res.statusCode == 200) {
-        finalMsg = MessageModel.fromJson(jsonDecode(res.body));
-        _localMessages[conversationId]!.removeWhere((m) => m.id == tempId || m.id == finalMsg.id);
-        _localMessages[conversationId]!.add(finalMsg);
+      ).timeout(const Duration(seconds: 8)),
+      onSuccess: (res) {
+        final serverMsg = MessageModel.fromJson(jsonDecode(res.body));
+        _localMessages[conversationId]!.removeWhere((m) => m.id == tempId || m.id == serverMsg.id);
+        _localMessages[conversationId]!.add(serverMsg);
         _localMessages[conversationId]!.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      }
-    } catch (_) {}
+        return serverMsg;
+      },
+    );
 
     // Update conversation preview
     final convIndex = _localConversations.indexWhere((c) => c.id == conversationId);
@@ -886,55 +836,23 @@ class ApiService {
       'memberIds': allMembers,
     };
 
-    try {
-      final res = await http.post(
+    return NetworkService.execute<ConversationModel>(
+      request: () => http.post(
         Uri.parse('$baseUrl/chat/groups'),
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 8));
-
-      if (res.statusCode == 200 || res.statusCode == 201) {
+      ).timeout(const Duration(seconds: 8)),
+      onSuccess: (res) {
         final conv = ConversationModel.fromJson(jsonDecode(res.body));
         _localConversations.removeWhere((c) => c.id == conv.id);
         _localConversations.insert(0, conv);
         return conv;
-      }
-    } catch (_) {}
-
-    // Fallback local group conversation to keep the UI resilient
-    final groupId = 'group_${DateTime.now().millisecondsSinceEpoch}';
-    final fallbackGroup = ConversationModel(
-      id: groupId,
-      title: cleanTitle,
-      description: cleanDesc,
-      isGroup: true,
-      avatarUrl: cleanAvatar,
-      participant1Id: me.id,
-      participant1Name: me.displayName,
-      participant1Avatar: me.avatarUrl,
-      groupAdminIds: [me.id],
-      participantIds: allMembers,
-      lastMessagePreview: '${me.displayName} created the group "$cleanTitle"',
-      lastMessageAt: DateTime.now(),
+      },
+      defaultErrorMessage: 'Failed to create group',
     );
-    _localConversations.removeWhere((c) => c.id == fallbackGroup.id);
-    _localConversations.insert(0, fallbackGroup);
-
-    final sysMsg = MessageModel(
-      id: 'msg_sys_${DateTime.now().millisecondsSinceEpoch}',
-      conversationId: groupId,
-      senderId: me.id,
-      senderName: 'System',
-      content: '${me.displayName} created the group "$cleanTitle"',
-      type: MessageType.system,
-      createdAt: DateTime.now(),
-    );
-    _localMessages[groupId] = [sysMsg];
-
-    return fallbackGroup;
   }
 
   static Future<List<GroupMemberModel>> getGroupMembers(String conversationId) async {

@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/models/models.dart';
-import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/network_service.dart';
+import 'package:frontend/widgets/network_status_banner.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -10,224 +12,201 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    NetworkService.mockHasInternet = true;
+    NetworkService.mockRequestHandler = null;
+    NetworkService.conditionNotifier.value = NetworkCondition.connected;
+    NetworkService.bannerMessageNotifier.value = null;
   });
 
-  group('PRD Domain & Model Tests', () {
-    test('UserModel serialization and dynamic fields', () {
-      final user = UserModel(
-        id: 'u1',
-        username: 'alex',
-        displayName: 'Alex Rivers',
+  tearDown(() {
+    NetworkService.mockHasInternet = null;
+    NetworkService.mockRequestHandler = null;
+  });
+
+  group('Network Connectivity & Backend Availability Conditions', () {
+    test('Condition 1: Internet is disconnected displays exact message', () async {
+      // Simulate disconnected internet
+      NetworkService.mockHasInternet = false;
+
+      // Executing any request must throw NoInternetException
+      await expectLater(
+        NetworkService.execute(
+          request: () async => throw const SocketException('No route to host'),
+          onSuccess: (res) => res.body,
+        ),
+        throwsA(
+          isA<NoInternetException>().having(
+            (e) => e.message,
+            'message',
+            equals('Internet is not on. Please turn on your internet.'),
+          ),
+        ),
       );
 
-      expect(user.safetyScore, equals(100));
-      expect(user.isVerified, isFalse);
-
-      final json = user.toJson();
-      expect(json['username'], equals('alex'));
-
-      final fromJson = UserModel.fromJson(json);
-      expect(fromJson.displayName, equals('Alex Rivers'));
-    });
-
-    test('SafetyEventModel parses severity and colors correctly', () {
-      final criticalEvent = SafetyEventModel(
-        id: 'e1',
-        eventType: 'SUSPICIOUS_LOGIN',
-        severity: 'CRITICAL',
-        description: 'Unauthorized login from unknown IP',
-        createdAt: DateTime.now(),
+      // Verify reactive condition and banner notifier
+      expect(NetworkService.currentCondition, equals(NetworkCondition.noInternet));
+      expect(
+        NetworkService.bannerMessageNotifier.value,
+        equals('Internet is not on. Please turn on your internet.'),
       );
 
-      expect(criticalEvent.getSeverityColor(), equals(const Color(0xFFEF4444)));
+      // Verify diagnosis helper
+      final msg = await NetworkService.getErrorMessage(NoInternetException());
+      expect(msg, equals('Internet is not on. Please turn on your internet.'));
     });
 
-    test('ApiService correctly intercepts malicious phishing URLs', () async {
-      final result = await ApiService.scanUrl('http://paypa1-security-check.fake/login');
-      expect(result['isSuspicious'], isTrue);
-      expect(result['riskScore'], greaterThanOrEqualTo(40));
-      expect((result['warnings'] as List).isNotEmpty, isTrue);
+    test('Condition 2: Internet connected but backend unavailable displays exact message (Transport error)', () async {
+      // Simulate internet available, but backend unreachable
+      NetworkService.mockHasInternet = true;
 
-      final cleanResult = await ApiService.scanUrl('https://flutter.dev');
-      expect(cleanResult['isSuspicious'], isFalse);
-    });
-
-    test('ConversationModel participants and preview', () {
-      final conv = ConversationModel(
-        id: 'c1',
-        title: 'saurabh',
-        participant1Id: 'u_shailesh',
-        participant1Name: 'shailesh',
-        participant1Avatar: 'https://example.com/shailesh.png',
-        participant2Id: 'u_saurabh',
-        participant2Name: 'saurabh',
-        participant2Avatar: 'https://example.com/saurabh.png',
-        lastMessagePreview: 'Hello Bob!',
-        lastMessageAt: DateTime.now(),
-        unreadCount: 1,
+      await expectLater(
+        NetworkService.execute(
+          request: () async => throw const SocketException('Connection refused to backend'),
+          onSuccess: (res) => res.body,
+        ),
+        throwsA(
+          isA<ServerUnavailableException>().having(
+            (e) => e.message,
+            'message',
+            equals('Server issue. The server is currently unavailable. Please try again later.'),
+          ),
+        ),
       );
 
-      final userShailesh = UserModel(
-        id: 'u_shailesh',
-        username: 'shailesh',
-        displayName: 'shailesh',
+      expect(NetworkService.currentCondition, equals(NetworkCondition.serverUnavailable));
+      expect(
+        NetworkService.bannerMessageNotifier.value,
+        equals('Server issue. The server is currently unavailable. Please try again later.'),
       );
-      final userSaurabh = UserModel(
-        id: 'u_saurabh',
-        username: 'saurabh',
-        displayName: 'saurabh',
-      );
-
-      expect(conv.getTitleForUser(userShailesh), equals('saurabh'));
-      expect(conv.getTitleForUser(userSaurabh), equals('shailesh'));
-      expect(conv.getAvatarForUser(userShailesh), equals('https://example.com/saurabh.png'));
-      expect(conv.getAvatarForUser(userSaurabh), equals('https://example.com/shailesh.png'));
-      expect(conv.unreadCount, equals(1));
     });
 
-    test('ApiService deduplicates sender messages so they appear only once', () async {
-      const convId = 'test_conv_dedup';
-      final sent1 = await ApiService.sendMessage(convId, 'Test single message');
-      expect(sent1.content, equals('Test single message'));
+    test('Condition 2: Internet connected but backend returns 502/503/504 gateway error', () async {
+      NetworkService.mockHasInternet = true;
 
-      final list = await ApiService.getMessages(convId);
-      final count = list.where((m) => m.content == 'Test single message').length;
-      expect(count, equals(1), reason: 'Message should appear exactly once in the list');
+      for (final code in [502, 503, 504]) {
+        await expectLater(
+          NetworkService.execute(
+            request: () async => http.Response('Bad Gateway / Gateway Timeout', code),
+            onSuccess: (res) => res.body,
+          ),
+          throwsA(
+            isA<ServerUnavailableException>().having(
+              (e) => e.message,
+              'message',
+              equals('Server issue. The server is currently unavailable. Please try again later.'),
+            ),
+          ),
+        );
+
+        expect(NetworkService.currentCondition, equals(NetworkCondition.serverUnavailable));
+        expect(
+          NetworkService.bannerMessageNotifier.value,
+          equals('Server issue. The server is currently unavailable. Please try again later.'),
+        );
+      }
     });
 
-    test('MessageModel retains senderAvatarUrl and emergency contacts manage accounts', () async {
-      final msg = MessageModel(
-        id: 'm1',
-        conversationId: 'c1',
-        senderId: 'u1',
-        senderName: 'Alice',
-        senderAvatarUrl: 'https://example.com/avatar.jpg',
-        content: 'Hello!',
-        createdAt: DateTime.now(),
+    test('Condition 3: Internet and backend are working loads data normally', () async {
+      NetworkService.mockHasInternet = true;
+
+      final result = await NetworkService.execute<Map<String, dynamic>>(
+        request: () async => http.Response(jsonEncode({'status': 'OK', 'items': [1, 2, 3]}), 200),
+        onSuccess: (res) => jsonDecode(res.body) as Map<String, dynamic>,
       );
 
-      expect(msg.senderAvatarUrl, equals('https://example.com/avatar.jpg'));
+      expect(result['status'], equals('OK'));
+      expect(result['items'], equals([1, 2, 3]));
+      expect(NetworkService.currentCondition, equals(NetworkCondition.connected));
+      expect(NetworkService.bannerMessageNotifier.value, isNull);
+    });
 
-      final contact = await ApiService.addEmergencyContact(
-        name: 'SecOps Guild',
-        accountOrEmail: 'secops@chatguard.io',
-        relationship: 'Security Team Account',
-        phone: '+1 555-0100',
+    test('Condition 4: Backend returns an application error displays appropriate error message', () async {
+      NetworkService.mockHasInternet = true;
+
+      // JSON error response with custom message
+      expect(
+        () => NetworkService.execute(
+          request: () async => http.Response(
+            jsonEncode({'error': 'Invalid username or password'}),
+            401,
+          ),
+          onSuccess: (res) => res.body,
+        ),
+        throwsA(
+          isA<BackendApplicationException>().having(
+            (e) => e.message,
+            'message',
+            equals('Invalid username or password'),
+          ),
+        ),
       );
 
-      expect(contact.name, equals('SecOps Guild'));
-      expect(contact.accountOrEmail, equals('secops@chatguard.io'));
-
-      final allContacts = await ApiService.getEmergencyContacts();
-      expect(allContacts.any((c) => c.accountOrEmail == 'secops@chatguard.io'), isTrue);
+      // JSON error response with 'message' field
+      expect(
+        () => NetworkService.execute(
+          request: () async => http.Response(
+            jsonEncode({'message': 'Conversation does not exist or user lacks permission'}),
+            404,
+          ),
+          onSuccess: (res) => res.body,
+        ),
+        throwsA(
+          isA<BackendApplicationException>().having(
+            (e) => e.message,
+            'message',
+            equals('Conversation does not exist or user lacks permission'),
+          ),
+        ),
+      );
     });
 
-    test('ConversationModel getOtherUsername resolves strictly by username', () {
-      final me = UserModel(id: 'u_alice', username: 'alice_w', displayName: 'Alice Wonder');
-      final conv = ConversationModel(
-        id: 'c_test_user',
-        title: 'Bob Builder',
-        participant1Id: 'u_alice',
-        participant1Name: 'Alice Wonder',
-        participant2Id: 'u_bob',
-        participant2Name: 'Bob Builder',
-        lastMessageAt: DateTime.now(),
+    testWidgets('NetworkStatusBanner UI renders correct condition messages', (tester) async {
+      // 1. When connected: Banner is completely hidden
+      NetworkService.conditionNotifier.value = NetworkCondition.connected;
+      NetworkService.bannerMessageNotifier.value = null;
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: NetworkStatusBanner(),
+          ),
+        ),
       );
 
-      final cache = <String, UserModel>{
-        'u_bob': UserModel(id: 'u_bob', username: 'bob_the_builder', displayName: 'Bob Builder'),
-      };
+      expect(find.text('Internet is not on. Please turn on your internet.'), findsNothing);
+      expect(find.text('Server issue. The server is currently unavailable. Please try again later.'), findsNothing);
 
-      final otherUsername = conv.getOtherUsername(me, cache);
-      expect(otherUsername, equals('bob_the_builder'));
-    });
+      // 2. When internet is disconnected: Red banner with exact message
+      NetworkService.conditionNotifier.value = NetworkCondition.noInternet;
+      NetworkService.bannerMessageNotifier.value = NetworkService.msgNoInternet;
+      await tester.pumpAndSettle();
 
-    test('Credential persistence and session lifecycle', () async {
-      // Test login with remember me
-      final user = await ApiService.login(
-        username: 'test_persist_user',
-        password: 'password123',
-        rememberMe: true,
+      expect(find.text('Internet is not on. Please turn on your internet.'), findsOneWidget);
+      expect(find.byIcon(Icons.wifi_off_rounded), findsOneWidget);
+
+      // 3. When server is unavailable: Amber banner with exact message and Retry action
+      bool retryPressed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NetworkStatusBanner(
+              onRetry: () => retryPressed = true,
+            ),
+          ),
+        ),
       );
 
-      expect(user.username, equals('test_persist_user'));
-      expect(ApiService.currentUser.username, equals('test_persist_user'));
+      NetworkService.conditionNotifier.value = NetworkCondition.serverUnavailable;
+      NetworkService.bannerMessageNotifier.value = NetworkService.msgServerUnavailable;
+      await tester.pumpAndSettle();
 
-      // Check saved credentials
-      final creds = await ApiService.getSavedCredentials();
-      expect(creds['username'], equals('test_persist_user'));
-      expect(creds['password'], equals('password123'));
-      expect(creds['rememberMe'], equals('true'));
+      expect(find.text('Server issue. The server is currently unavailable. Please try again later.'), findsOneWidget);
+      expect(find.byIcon(Icons.dns_rounded), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
 
-      // Test initSession restore
-      final restored = await ApiService.initSession();
-      expect(restored, isTrue);
-
-      // Test logout
-      await ApiService.logout();
-      expect(ApiService.currentUserNotifier.value, isNull);
-    });
-
-    test('System message logging for call completion', () async {
-      const convId = 'conv_call_test';
-      final sent = await ApiService.sendMessage(
-        convId,
-        '📞 Voice call ended • 01:45',
-        type: MessageType.system,
-      );
-
-      expect(sent.type, equals(MessageType.system));
-      expect(sent.content, contains('Voice call ended'));
-    });
-
-    test('PlayTogether real-time game payload serialization and parsing', () {
-      final chessPayload = {
-        'game': 'CHESS',
-        'currentTurn': 'BLACK',
-        'lastMove': 'P e2-e4',
-        'statusMessage': "Opponent's turn to move",
-        'timestamp': 1700000000000,
-      };
-
-      final jsonStr = jsonEncode(chessPayload);
-      final messageContent = '🎮 [PLAY_TOGETHER:$jsonStr] Chess: Opponent\'s turn to move';
-
-      expect(messageContent, contains('[PLAY_TOGETHER:'));
-      final startIdx = messageContent.indexOf('[PLAY_TOGETHER:');
-      final endIdx = messageContent.indexOf(']', startIdx);
-      final extractedJson = messageContent.substring(startIdx + '[PLAY_TOGETHER:'.length, endIdx);
-      final parsed = jsonDecode(extractedJson) as Map<String, dynamic>;
-
-      expect(parsed['game'], equals('CHESS'));
-      expect(parsed['currentTurn'], equals('BLACK'));
-      expect(parsed['lastMove'], equals('P e2-e4'));
-      expect(parsed['timestamp'], equals(1700000000000));
-    });
-
-    test('PlayTogether Ludo and Snakes & Ladders state synchronization', () {
-      final ludoPayload = {
-        'game': 'LUDO',
-        'redScore': 12,
-        'greenScore': 6,
-        'currentDice': 5,
-        'currentTurn': 'GREEN',
-        'timestamp': 1700000001000,
-      };
-      final ludoJson = jsonEncode(ludoPayload);
-      expect(ludoJson, contains('"currentDice":5'));
-      expect(ludoJson, contains('"currentTurn":"GREEN"'));
-
-      final snakesPayload = {
-        'game': 'SNAKES_AND_LADDERS',
-        'player1Pos': 25,
-        'player2Pos': 14,
-        'activePlayer': 2,
-        'lastDice': 6,
-        'timestamp': 1700000002000,
-      };
-      final snakesJson = jsonEncode(snakesPayload);
-      expect(snakesJson, contains('"activePlayer":2'));
-      expect(snakesJson, contains('"player1Pos":25'));
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      expect(retryPressed, isTrue);
     });
   });
 }

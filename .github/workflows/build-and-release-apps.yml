@@ -230,10 +230,25 @@ jobs:
           cd frontend
           flutter build windows --release
 
-      - name: 📦 Package Windows Release Bundle (Zip)
+      - name: 🛠️ Setup Inno Setup Compiler
+        run: |
+          choco install innosetup --no-progress -y
+          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+
+      - name: 📦 Compile Windows Setup Wizard Installer (.exe)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts/windows
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" frontend/windows/installer/inno_setup.iss
+          if (-not (Test-Path "artifacts/windows/chatguard-windows-setup.exe")) {
+            Write-Error "Installer executable was not generated!"
+            exit 1
+          }
+          Write-Host "✅ Created chatguard-windows-setup.exe successfully"
+
+      - name: 📦 Package Windows Release Bundle (Zip)
+        shell: pwsh
+        run: |
           $ReleaseDir = "frontend/build/windows/x64/runner/Release"
           Compress-Archive -Path "$ReleaseDir/*" -DestinationPath "artifacts/windows/chatguard-windows-x64-release.zip" -CompressionLevel Optimal
 
@@ -384,7 +399,8 @@ jobs:
           | 🍎 **iOS** | Universal iOS Devices | `chatguard-ios-release.ipa` | iOS Package |
           | 🍎 **iOS Bundle** | Payload Archive | `chatguard-ios-bundle.zip` | Zip Archive |
           | 💻 **macOS** | Apple Silicon & Intel (Universal) | `chatguard-macos-release.zip` | macOS App Bundle |
-          | 🪟 **Windows** | Windows 10/11 x64 | `chatguard-windows-x64-release.zip` | Standalone EXE + DLLs |
+          | 🪟 **Windows (Setup Wizard)** | Windows 10/11 x64 | `chatguard-windows-setup.exe` | Next > Next GUI Installer (.exe) |
+          | 🪟 **Windows (Standalone)** | Windows 10/11 x64 | `chatguard-windows-x64-release.zip` | Standalone Portable ZIP |
           | 🐧 **Linux** | Linux x64 Desktop | `chatguard-linux-x64-release.tar.gz` | Tarball Archive |
 
           ### 🔐 Integrity & Verification (SHA-256)
@@ -416,7 +432,7 @@ jobs:
           | 🤖 **Android** | Completed ✅ | `chatguard-android-release.apk`, `chatguard-android-release.aab` |
           | 🍎 **iOS** | Completed ✅ | `chatguard-ios-release.ipa`, `chatguard-ios-bundle.zip` |
           | 💻 **macOS** | Completed ✅ | `chatguard-macos-release.zip` |
-          | 🪟 **Windows** | Completed ✅ | `chatguard-windows-x64-release.zip` |
+          | 🪟 **Windows** | Completed ✅ | `chatguard-windows-setup.exe` (Installer), `chatguard-windows-x64-release.zip` |
           | 🐧 **Linux** | Completed ✅ | `chatguard-linux-x64-release.tar.gz` |
           | 🔐 **Checksums** | Verified ✅ | `SHA256SUMS.txt` |
           | 🏷️ **GitHub Release** | Published 🚀 | `${{ env.TAG_NAME }}` |

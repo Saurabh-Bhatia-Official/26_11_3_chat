@@ -3,7 +3,7 @@
 # ====================================================================
 param (
     [Parameter(Mandatory=$false)]
-    [string]$Password = $env:DB_PASSWORD,
+    [string]$Password = $(if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { "JtZfEtX4eX0c8vtJ" }),
 
     [Parameter(Mandatory=$false)]
     [string]$HostName = "db.vtxwvilrvtiklqmnbenh.supabase.co",

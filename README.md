@@ -1,6 +1,6 @@
 # Next-Gen Cross-Platform Chat Application
 
-A high-performance communication platform implementing the full Product Requirements Document (PRD), built with **Flutter**, **Spring Boot**, **Neon (PostgreSQL)**, **Cloudinary**, and configured for instantaneous deployment on **Vercel**.
+A high-performance communication platform implementing the full Product Requirements Document (PRD), built with **Flutter**, **Spring Boot**, **Supabase (PostgreSQL)**, **Cloudinary**, and configured for instantaneous deployment on **Vercel**.
 
 ---
 
@@ -103,13 +103,16 @@ cd frontend && flutter run -d chrome --dart-define-from-file=.env
 
 ---
 
-## 🗄️ Neon PostgreSQL Setup
-The application is pre-configured to connect to your Neon serverless PostgreSQL database:
+## 🗄️ Supabase PostgreSQL Setup
+The application is pre-configured to connect to your Supabase cloud PostgreSQL database:
 ```env
-DATABASE_URL=postgresql://neondb_owner:npg_75prOHxhoDCa@ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-NEON_DB_URL=jdbc:postgresql://ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech:5432/neondb?sslmode=require
-DB_USER=neondb_owner
-DB_PASSWORD=npg_75prOHxhoDCa
+DATABASE_URL=postgresql://postgres:JtZfEtX4eX0c8vtJ@db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
+SUPABASE_DB_URL=jdbc:postgresql://db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
+DB_HOST=db.vtxwvilrvtiklqmnbenh.supabase.co
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres
+DB_PASSWORD=JtZfEtX4eX0c8vtJ
 ```
 Database schema definitions and indexes are maintained in [`database/schema.sql`](file:///c:/Users/ssbha/Desktop/CI_Projects/26_11_3_chat/database/schema.sql).
 

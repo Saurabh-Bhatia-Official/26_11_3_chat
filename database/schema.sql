@@ -1,5 +1,5 @@
 -- ====================================================================
--- POSTGRESQL SCHEMA FOR NEXT-GEN CHAT APPLICATION (NEON DATABASE)
+-- POSTGRESQL SCHEMA FOR NEXT-GEN CHAT APPLICATION (SUPABASE POSTGRESQL DATABASE)
 -- Supports: Messaging, Safety Guardian, Dynamic Identity, PlayTogether Games
 -- ====================================================================
 

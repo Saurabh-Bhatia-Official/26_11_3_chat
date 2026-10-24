@@ -20,7 +20,7 @@ public class DataSourceConfig {
     @Value("${spring.datasource.username:postgres}")
     private String dbUser;
 
-    @Value("${spring.datasource.password:}")
+    @Value("${spring.datasource.password:JtZfEtX4eX0c8vtJ}")
     private String dbPassword;
 
     @Value("${DB_HOST:db.vtxwvilrvtiklqmnbenh.supabase.co}")

@@ -54,7 +54,7 @@ The CI/CD system is organized into **two independent, modular workflow files** i
 | 🤖 **Android** | `ubuntu-latest` | `flutter build apk --release`<br>`flutter build appbundle --release` | `chatguard-android-release.apk`<br>`chatguard-android-release.aab` |
 | 🍎 **iOS** | `macos-14` (Apple Silicon) | `flutter build ios --release --no-codesign` | `chatguard-ios-release.ipa`<br>`chatguard-ios-bundle.zip` |
 | 💻 **macOS** | `macos-14` (Apple Silicon) | `flutter config --enable-macos-desktop`<br>`flutter build macos --release` | `chatguard-macos-release.zip` |
-| 🪟 **Windows** | `windows-latest` | `flutter config --enable-windows-desktop`<br>`flutter build windows --release` | `chatguard-windows-x64-release.zip` |
+| 🪟 **Windows** | `windows-latest` | `flutter config --enable-windows-desktop`<br>`flutter build windows --release`<br>`iscc frontend/windows/installer/inno_setup.iss` | `chatguard-windows-setup.exe` *(Next > Next Setup Wizard)*<br>`chatguard-windows-x64-release.zip` *(Portable)* |
 | 🐧 **Linux** | `ubuntu-latest` | `flutter config --enable-linux-desktop`<br>`flutter build linux --release` | `chatguard-linux-x64-release.tar.gz` |
 
 ### Consolidated GitHub Release Job (`publish-release`):
