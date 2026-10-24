@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: two6-11-3-chat
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: PORT
+        value: 8085
+      - key: DB_HOST
+        value: aws-0-ap-northeast-1.pooler.supabase.com
+      - key: DB_PORT
+        value: 5432
+      - key: DB_NAME
+        value: postgres
+      - key: DB_USER
+        value: postgres.vtxwvilrvtiklqmnbenh
+      - key: DB_PASSWORD
+        value: JtZfEtX4eX0c8vtJ
+      - key: DATABASE_URL
+        value: postgresql://postgres.vtxwvilrvtiklqmnbenh:JtZfEtX4eX0c8vtJ@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+      - key: SUPABASE_DB_URL
+        value: jdbc:postgresql://aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+      - key: CLOUDINARY_CLOUD_NAME
+        value: dltpal1gr
+      - key: CLOUDINARY_API_KEY
+        value: 868572831331282
+      - key: CLOUDINARY_API_SECRET
+        value: Fjv2tA2TvigvvNRbPNX1BDGiXrU
+      - key: CLOUDINARY_URL
+        value: cloudinary://868572831331282:Fjv2tA2TvigvvNRbPNX1BDGiXrU@dltpal1gr
+      - key: JWT_SECRET
+        value: NextGenChatSuperSecretKey2026SecureTokenGeneratorForProductionDeployment98765
+      - key: CORS_ORIGINS
+        value: https://*.vercel.app,http://localhost:3000,http://localhost:8080,http://localhost:8085,*
