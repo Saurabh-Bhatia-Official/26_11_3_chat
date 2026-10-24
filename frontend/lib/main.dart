@@ -5,52 +5,48 @@ import 'theme/app_theme.dart';
 import 'views/auth_screen.dart';
 import 'views/home_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.initSession();
   runApp(const NextGenChatApp());
 }
 
-class NextGenChatApp extends StatefulWidget {
+class NextGenChatApp extends StatelessWidget {
   const NextGenChatApp({super.key});
 
   @override
-  State<NextGenChatApp> createState() => _NextGenChatAppState();
-}
-
-class _NextGenChatAppState extends State<NextGenChatApp> {
-  AppThemeMode _currentThemeMode = AppThemeMode.obsidianNeon;
-
-  void _updateTheme(AppThemeMode mode) {
-    setState(() {
-      _currentThemeMode = mode;
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ChatGuard Next-Gen Chat',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.getTheme(_currentThemeMode),
-      home: ValueListenableBuilder<UserModel?>(
-        valueListenable: ApiService.currentUserNotifier,
-        builder: (context, user, _) {
-          if (user == null) {
-            return AuthScreen(
-              onAuthenticated: () {
-                setState(() {});
-              },
+    return ValueListenableBuilder<String>(
+      valueListenable: ApiService.softwareNameNotifier,
+      builder: (context, currentSoftwareName, _) {
+        return ValueListenableBuilder<AppThemeMode>(
+          valueListenable: AppTheme.currentThemeNotifier,
+          builder: (context, currentThemeMode, _) {
+            return MaterialApp(
+              title: currentSoftwareName,
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.getTheme(currentThemeMode),
+              home: ValueListenableBuilder<UserModel?>(
+                valueListenable: ApiService.currentUserNotifier,
+                builder: (context, user, _) {
+                  if (user == null) {
+                    return AuthScreen(
+                      onAuthenticated: () {},
+                    );
+                  }
+                  return HomeScreen(
+                    currentThemeMode: currentThemeMode,
+                    onThemeChanged: (mode) => AppTheme.setTheme(mode),
+                    onLogout: () {
+                      ApiService.logout();
+                    },
+                  );
+                },
+              ),
             );
-          }
-          return HomeScreen(
-            currentThemeMode: _currentThemeMode,
-            onThemeChanged: _updateTheme,
-            onLogout: () {
-              ApiService.logout();
-            },
-          );
-        },
-      ),
+          },
+        );
+      },
     );
   }
 }

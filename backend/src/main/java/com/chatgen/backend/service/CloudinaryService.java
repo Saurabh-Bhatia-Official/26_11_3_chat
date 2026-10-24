@@ -58,17 +58,10 @@ public class CloudinaryService {
             response.put("resource_type", uploadResult.get("resource_type"));
             return response;
         } catch (Exception ex) {
-            log.warn("Cloudinary upload fallback triggered (using high-speed simulated CDN asset): {}", ex.getMessage());
-            // Safe fallback URL for demo / offline environment
+            log.info("Cloudinary upload fallback to direct data URI: {}", ex.getMessage());
             String simulatedPublicId = "chatgen/" + folder + "/" + UUID.randomUUID().toString().substring(0, 8);
-            String fallbackUrl;
-            if (contentType.startsWith("image/")) {
-                fallbackUrl = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800";
-            } else if (contentType.startsWith("audio/")) {
-                fallbackUrl = "https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg";
-            } else {
-                fallbackUrl = "https://res.cloudinary.com/" + cloudName + "/raw/upload/" + simulatedPublicId;
-            }
+            String base64Data = java.util.Base64.getEncoder().encodeToString(file.getBytes());
+            String fallbackUrl = "data:" + contentType + ";base64," + base64Data;
 
             Map<String, Object> fallback = new HashMap<>();
             fallback.put("url", fallbackUrl);

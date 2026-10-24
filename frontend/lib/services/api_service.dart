@@ -1,27 +1,324 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
+import '../theme/app_theme.dart';
+import 'app_branding/app_branding.dart';
 
 class ApiService {
-  // Configurable backend URL (defaults to local Spring Boot port 8085)
-  static String baseUrl = 'http://localhost:8085/api';
+  // Configurable backend URL (reads from frontend/.env or defaults to local Spring Boot port 8085)
+  static String baseUrl = const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://localhost:8085/api',
+  );
+
+  // Preference Storage Keys
+  static const String _keyUser = 'saved_auth_user_json';
+  static const String _keyToken = 'saved_auth_jwt_token';
+  static const String _keySavedUsername = 'saved_auth_username';
+  static const String _keySavedPassword = 'saved_auth_password';
+  static const String _keyRememberMe = 'saved_auth_remember_me';
+  static const String _keySoftwareName = 'custom_software_name';
+  static const String _keyCustomLogo = 'custom_software_logo_data';
+
+  // Dynamic Software Name & Logo State across entire software
+  static final ValueNotifier<String> softwareNameNotifier = ValueNotifier<String>('ChatGuard Next-Gen Chat');
+  static String get softwareName => softwareNameNotifier.value;
+
+  static final ValueNotifier<String?> customLogoDataNotifier = ValueNotifier<String?>(null);
+  static String? get customLogoData => customLogoDataNotifier.value;
 
   // Dynamic Auth State (null = not logged in)
   static final ValueNotifier<UserModel?> currentUserNotifier = ValueNotifier<UserModel?>(null);
 
+  // JWT Token Management
+  static String? _authToken;
+  static String? get authToken => _authToken;
+
+  static Map<String, String> get authHeaders {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+    };
+    if (_authToken != null && _authToken!.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $_authToken';
+    }
+    return headers;
+  }
+
+  // Dynamic App Icon State across entire software
+  static final ValueNotifier<String> currentAppIconNotifier = ValueNotifier<String>('neon_pulse');
+  static String get currentAppIcon => currentAppIconNotifier.value;
+
   static UserModel get currentUser => currentUserNotifier.value ?? UserModel(id: 'u_default', username: 'guest', displayName: 'Guest User');
-  static set currentUser(UserModel user) => currentUserNotifier.value = user;
+  static set currentUser(UserModel user) {
+    currentUserNotifier.value = user;
+    if (user.appIconPreference.isNotEmpty) {
+      currentAppIconNotifier.value = user.appIconPreference;
+    }
+    if (user.themePreference.isNotEmpty) {
+      AppTheme.currentThemeNotifier.value = AppTheme.fromString(user.themePreference);
+    }
+    if (user.softwareName != null && user.softwareName!.isNotEmpty) {
+      softwareNameNotifier.value = user.softwareName!;
+    }
+    if (user.customLogoUrl != null && user.customLogoUrl!.isNotEmpty) {
+      customLogoDataNotifier.value = user.customLogoUrl;
+    }
+    syncBrandingToPlatform();
+  }
 
   // Local caching to support offline UI resilience
   static final List<ConversationModel> _localConversations = [];
   static final Map<String, List<MessageModel>> _localMessages = {};
 
   // ==========================================
-  // AUTHENTICATION
+  // AUTHENTICATION & CLOUD PERSISTENCE
   // ==========================================
 
-  static Future<UserModel> login({required String username, required String password}) async {
+  /// Synchronizes dynamic title and favicon to the web page/platform
+  static void syncBrandingToPlatform() {
+    try {
+      final iconUrl = customLogoData ?? AppIconHelper.getPresetSvgFaviconDataUri(currentAppIcon);
+      AppBrandingPlatform.updateWebBranding(
+        title: softwareName,
+        iconDataUrl: iconUrl,
+      );
+    } catch (e) {
+      debugPrint('Error syncing branding to platform: $e');
+    }
+  }
+
+  /// Fetches system branding (software name, system logo, color theme, appearance) from cloud database
+  static Future<void> fetchCloudBranding() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/system/branding')).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(res.body);
+        final prefs = await SharedPreferences.getInstance();
+
+        if (data['softwareName'] != null && (data['softwareName'] as String).trim().isNotEmpty) {
+          final name = (data['softwareName'] as String).trim();
+          softwareNameNotifier.value = name;
+          await prefs.setString(_keySoftwareName, name);
+        }
+
+        if (data['customLogoUrl'] != null && (data['customLogoUrl'] as String).isNotEmpty) {
+          final logo = data['customLogoUrl'] as String;
+          customLogoDataNotifier.value = logo;
+          await prefs.setString(_keyCustomLogo, logo);
+        }
+
+        if (data['themePreference'] != null && (data['themePreference'] as String).isNotEmpty) {
+          final themeStr = data['themePreference'] as String;
+          final mode = AppTheme.fromString(themeStr);
+          AppTheme.currentThemeNotifier.value = mode;
+          await prefs.setString('theme_preference', mode.name);
+        }
+
+        if (data['appIconPreference'] != null && (data['appIconPreference'] as String).isNotEmpty) {
+          final icon = data['appIconPreference'] as String;
+          currentAppIconNotifier.value = icon;
+          await prefs.setString('app_icon_preference', icon);
+        }
+
+        syncBrandingToPlatform();
+      }
+    } catch (e) {
+      debugPrint('Cloud branding fetch notice: $e');
+    }
+  }
+
+  /// Pushes branding, logo, theme, and appearance preferences to cloud database
+  static Future<void> syncBrandingToCloud({
+    String? softwareName,
+    String? customLogoUrl,
+    String? themePreference,
+    String? appIconPreference,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        if (softwareName != null) 'softwareName': softwareName,
+        if (customLogoUrl != null) 'customLogoUrl': customLogoUrl,
+        if (themePreference != null) 'themePreference': themePreference,
+        if (appIconPreference != null) 'appIconPreference': appIconPreference,
+      };
+
+      if (payload.isNotEmpty) {
+        http.post(
+          Uri.parse('$baseUrl/system/branding'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(payload),
+        ).catchError((_) => http.Response('{}', 500));
+      }
+    } catch (e) {
+      debugPrint('Cloud branding sync notice: $e');
+    }
+  }
+
+  /// Initializes saved session from SharedPreferences and syncs with cloud database
+  static Future<bool> initSession() async {
+    AppTheme.onThemeChanged = (mode) {
+      syncBrandingToCloud(themePreference: mode.name);
+      if (currentUserNotifier.value != null) {
+        updateProfile(themePreference: mode.name);
+      }
+    };
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final savedTheme = prefs.getString('theme_preference');
+      if (savedTheme != null && savedTheme.isNotEmpty) {
+        AppTheme.currentThemeNotifier.value = AppTheme.fromString(savedTheme);
+      }
+
+      final savedSoftwareName = prefs.getString(_keySoftwareName);
+      if (savedSoftwareName != null && savedSoftwareName.trim().isNotEmpty) {
+        softwareNameNotifier.value = savedSoftwareName.trim();
+      }
+
+      final savedCustomLogo = prefs.getString(_keyCustomLogo);
+      if (savedCustomLogo != null && savedCustomLogo.isNotEmpty) {
+        customLogoDataNotifier.value = savedCustomLogo;
+      }
+
+      final savedAppIcon = prefs.getString('app_icon_preference');
+      if (savedAppIcon != null && savedAppIcon.isNotEmpty) {
+        currentAppIconNotifier.value = savedAppIcon;
+      }
+
+      syncBrandingToPlatform();
+
+      // Async fetch latest cloud branding and appearance settings from database
+      fetchCloudBranding();
+
+      final savedToken = prefs.getString(_keyToken);
+      if (savedToken != null && savedToken.isNotEmpty) {
+        _authToken = savedToken;
+      }
+
+      final userJson = prefs.getString(_keyUser);
+      if (userJson != null && userJson.isNotEmpty) {
+        final Map<String, dynamic> data = jsonDecode(userJson);
+        final user = UserModel.fromJson(data);
+        currentUser = user;
+        userCache[user.id] = user;
+        syncBrandingToPlatform();
+
+        // Refresh latest account information from server in background using JWT
+        if (_authToken != null && _authToken!.isNotEmpty) {
+          fetchAccount().catchError((_) => user);
+        }
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Error restoring saved session: $e');
+    }
+    return false;
+  }
+
+  /// Fetches the currently authenticated account from backend using JWT token
+  static Future<UserModel?> fetchAccount() async {
+    if (_authToken == null || _authToken!.isEmpty) return null;
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/auth/account'),
+        headers: authHeaders,
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final user = UserModel.fromJson(data['user'] ?? data);
+        currentUser = user;
+        userCache[user.id] = user;
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_keyUser, jsonEncode(user.toJson()));
+        return user;
+      } else if (res.statusCode == 401) {
+        await logout();
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Notice on fetching account via JWT: $e');
+    }
+    return currentUserNotifier.value;
+  }
+
+  /// Sets custom software name across app, browser tab, and cloud database
+  static Future<void> setSoftwareName(String name) async {
+    final trimmed = name.trim().isEmpty ? 'ChatGuard Next-Gen Chat' : name.trim();
+    softwareNameNotifier.value = trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySoftwareName, trimmed);
+    syncBrandingToPlatform();
+    await syncBrandingToCloud(softwareName: trimmed);
+    if (currentUserNotifier.value != null) {
+      await updateProfile(softwareName: trimmed);
+    }
+  }
+
+  /// Sets custom software logo URL/data across entire app, browser favicon, and cloud database
+  static Future<void> setCustomLogo(String? logoDataUrl) async {
+    customLogoDataNotifier.value = logoDataUrl;
+    final prefs = await SharedPreferences.getInstance();
+    if (logoDataUrl != null && logoDataUrl.isNotEmpty) {
+      await prefs.setString(_keyCustomLogo, logoDataUrl);
+    } else {
+      await prefs.remove(_keyCustomLogo);
+    }
+    syncBrandingToPlatform();
+    await syncBrandingToCloud(customLogoUrl: logoDataUrl ?? '');
+    if (currentUserNotifier.value != null) {
+      await updateProfile(customLogoUrl: logoDataUrl ?? '');
+    }
+  }
+
+  /// Resets to default preset icons
+  static Future<void> resetCustomLogo() async {
+    await setCustomLogo(null);
+  }
+
+  /// Sets active app icon preference globally across the entire software and cloud
+  static Future<void> setAppIcon(String iconId) async {
+    currentAppIconNotifier.value = iconId;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('app_icon_preference', iconId);
+    syncBrandingToPlatform();
+    await syncBrandingToCloud(appIconPreference: iconId);
+    await updateProfile(appIconPreference: iconId);
+  }
+
+  /// Sets active theme mode globally across the entire software and cloud
+  static Future<void> setThemeMode(AppThemeMode mode) async {
+    await AppTheme.setTheme(mode);
+  }
+
+  /// Retrieves remembered credentials for auto-fill
+  static Future<Map<String, String>> getSavedCredentials() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final username = prefs.getString(_keySavedUsername) ?? '';
+      final password = prefs.getString(_keySavedPassword) ?? '';
+      final rememberMe = (prefs.getBool(_keyRememberMe) ?? true).toString();
+      return {
+        'username': username,
+        'password': password,
+        'rememberMe': rememberMe,
+      };
+    } catch (_) {
+      return {'username': '', 'password': '', 'rememberMe': 'true'};
+    }
+  }
+
+  static Future<UserModel> login({
+    required String username,
+    required String password,
+    bool rememberMe = true,
+  }) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/auth/login'),
@@ -31,8 +328,37 @@ class ApiService {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        final token = data['token']?.toString();
+        if (token != null && token.isNotEmpty) {
+          _authToken = token;
+        }
+
         final user = UserModel.fromJson(data['user'] ?? data);
-        currentUserNotifier.value = user;
+
+        // Clear previous account's cached state
+        _localConversations.clear();
+        _localMessages.clear();
+
+        // Dynamically switch current account state and theme across software
+        currentUser = user;
+        userCache[user.id] = user;
+
+        // Persist session & credentials
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_keyUser, jsonEncode(user.toJson()));
+        if (token != null && token.isNotEmpty) {
+          await prefs.setString(_keyToken, token);
+        }
+        await prefs.setBool(_keyRememberMe, rememberMe);
+        if (rememberMe) {
+          await prefs.setString(_keySavedUsername, username.trim());
+          await prefs.setString(_keySavedPassword, password);
+        } else {
+          await prefs.remove(_keySavedUsername);
+          await prefs.remove(_keySavedPassword);
+        }
+
+        syncBrandingToPlatform();
         return user;
       } else {
         final err = jsonDecode(res.body);
@@ -42,13 +368,24 @@ class ApiService {
       if (e.toString().contains('User not found') || e.toString().contains('Incorrect password')) {
         rethrow;
       }
-      // If backend is unreachable, create session for user
+      // If backend is unreachable, create fallback session for user and persist
       final fallbackUser = UserModel(
         id: 'usr_${username.trim()}',
         username: username.trim(),
         displayName: username.trim(),
       );
-      currentUserNotifier.value = fallbackUser;
+      _localConversations.clear();
+      _localMessages.clear();
+      currentUser = fallbackUser;
+      userCache[fallbackUser.id] = fallbackUser;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyUser, jsonEncode(fallbackUser.toJson()));
+      if (rememberMe) {
+        await prefs.setString(_keySavedUsername, username.trim());
+        await prefs.setString(_keySavedPassword, password);
+        await prefs.setBool(_keyRememberMe, true);
+      }
       return fallbackUser;
     }
   }
@@ -58,6 +395,7 @@ class ApiService {
     required String displayName,
     required String email,
     required String password,
+    bool rememberMe = true,
   }) async {
     try {
       final res = await http.post(
@@ -73,8 +411,32 @@ class ApiService {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
+        final token = data['token']?.toString();
+        if (token != null && token.isNotEmpty) {
+          _authToken = token;
+        }
+
         final user = UserModel.fromJson(data['user'] ?? data);
-        currentUserNotifier.value = user;
+
+        // Clear previous account's cached state
+        _localConversations.clear();
+        _localMessages.clear();
+
+        currentUser = user;
+        userCache[user.id] = user;
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_keyUser, jsonEncode(user.toJson()));
+        if (token != null && token.isNotEmpty) {
+          await prefs.setString(_keyToken, token);
+        }
+        await prefs.setBool(_keyRememberMe, rememberMe);
+        if (rememberMe) {
+          await prefs.setString(_keySavedUsername, username.trim());
+          await prefs.setString(_keySavedPassword, password);
+        }
+
+        syncBrandingToPlatform();
         return user;
       } else {
         final err = jsonDecode(res.body);
@@ -90,15 +452,51 @@ class ApiService {
         displayName: displayName.trim().isNotEmpty ? displayName.trim() : username.trim(),
         email: email.trim(),
       );
-      currentUserNotifier.value = fallbackUser;
+      _localConversations.clear();
+      _localMessages.clear();
+      currentUser = fallbackUser;
+      userCache[fallbackUser.id] = fallbackUser;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyUser, jsonEncode(fallbackUser.toJson()));
       return fallbackUser;
     }
   }
 
-  static void logout() {
+  static Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keyUser);
+      await prefs.remove(_keyToken);
+    } catch (e) {
+      debugPrint('Error clearing saved session: $e');
+    }
+    _authToken = null;
     currentUserNotifier.value = null;
     _localConversations.clear();
     _localMessages.clear();
+  }
+
+  /// Uploads media bytes to backend Cloudinary service or converts to data URI
+  static Future<String?> uploadMedia(Uint8List bytes, String filename) async {
+    try {
+      final uri = Uri.parse('$baseUrl/media/upload');
+      final request = http.MultipartRequest('POST', uri);
+      request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 8));
+      final response = await http.Response.fromStream(streamedResponse);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['url'] != null) {
+          return data['url'] as String;
+        }
+      }
+    } catch (e) {
+      debugPrint('Media upload notice: $e');
+    }
+    // High-performance data URI fallback so user image displays immediately
+    final base64Data = base64Encode(bytes);
+    return 'data:image/png;base64,$base64Data';
   }
 
   // ==========================================
@@ -122,14 +520,45 @@ class ApiService {
     return [];
   }
 
+  static Future<List<UserModel>> searchUsers(String query) async {
+    final cleanQuery = query.trim().replaceAll('@', '');
+    if (cleanQuery.isEmpty) return [];
+    try {
+      final me = currentUser;
+      final uri = Uri.parse('$baseUrl/auth/search?query=${Uri.encodeComponent(cleanQuery)}&currentUserId=${me.id}');
+      final res = await http.get(uri).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        final users = list.map((item) => UserModel.fromJson(item)).toList();
+        for (final u in users) {
+          userCache[u.id] = u;
+        }
+        return users;
+      }
+    } catch (_) {}
+    return [];
+  }
+
   static Future<List<ConversationModel>> getConversations() async {
     try {
-      final userId = currentUserNotifier.value?.id;
-      final uri = userId != null
-          ? Uri.parse('$baseUrl/chat/conversations?userId=$userId')
-          : Uri.parse('$baseUrl/chat/conversations');
+      final user = currentUser;
+      final userId = user.id;
+      final uuidRegex = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+      final isValidUuid = uuidRegex.hasMatch(userId);
 
-      final res = await http.get(uri).timeout(const Duration(seconds: 3));
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final uri = Uri.parse('$baseUrl/chat/conversations?userId=$userId&_t=$timestamp');
+
+      final res = await http.get(
+        uri,
+        headers: {
+          ...authHeaders,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      ).timeout(const Duration(seconds: 8));
+
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         final convs = list.map((item) => ConversationModel.fromJson(item)).toList();
@@ -138,7 +567,7 @@ class ApiService {
         return convs;
       }
     } catch (_) {}
-    return _localConversations;
+    return List<ConversationModel>.from(_localConversations);
   }
 
   static Future<ConversationModel> createConversation({
@@ -161,9 +590,12 @@ class ApiService {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/chat/conversations'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 8));
 
       if (res.statusCode == 200) {
         final conv = ConversationModel.fromJson(jsonDecode(res.body));
@@ -193,38 +625,77 @@ class ApiService {
     return fallbackConv;
   }
 
+  static Future<bool> deleteConversation(String conversationId) async {
+    final me = currentUser;
+    _localConversations.removeWhere((c) => c.id == conversationId);
+    _localMessages.remove(conversationId);
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/chat/conversations/$conversationId?userId=${me.id}'),
+      ).timeout(const Duration(seconds: 5));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ==========================================
   // MESSAGES
   // ==========================================
 
-  static List<MessageModel> _deduplicate(List<MessageModel> list) {
-    final seenIds = <String>{};
+  static List<MessageModel> _mergeAndDeduplicate(List<MessageModel> serverMsgs, List<MessageModel> localMsgs) {
     final result = <MessageModel>[];
-    for (final m in list) {
+    final seenIds = <String>{};
+
+    for (final m in serverMsgs) {
       if (seenIds.add(m.id)) {
-        final duplicate = result.any((existing) =>
-            existing.senderId == m.senderId &&
-            existing.content == m.content &&
-            existing.createdAt.difference(m.createdAt).abs().inSeconds <= 2);
-        if (!duplicate) {
+        result.add(m);
+      }
+    }
+
+    for (final m in localMsgs) {
+      if (m.id.startsWith('msg_')) {
+        final alreadyCommitted = result.any((s) =>
+            s.senderId == m.senderId &&
+            s.content == m.content &&
+            s.createdAt.difference(m.createdAt).abs().inSeconds <= 4);
+        if (!alreadyCommitted && seenIds.add(m.id)) {
           result.add(m);
         }
       }
     }
+
+    result.sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return result;
   }
 
   static Future<List<MessageModel>> getMessages(String conversationId) async {
+    final me = currentUser;
     try {
-      final res = await http.get(Uri.parse('$baseUrl/chat/conversations/$conversationId/messages')).timeout(const Duration(seconds: 3));
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final uri = Uri.parse('$baseUrl/chat/conversations/$conversationId/messages?userId=${me.id}&_t=$timestamp');
+      final res = await http.get(
+        uri,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      ).timeout(const Duration(seconds: 8));
+
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
-        final msgs = list.map((item) => MessageModel.fromJson(item)).toList();
-        _localMessages[conversationId] = _deduplicate(msgs);
+        final msgs = list
+            .map((item) => MessageModel.fromJson(item))
+            .where((m) => !m.isDeletedForMe(me.id))
+            .toList();
+        final localExisting = _localMessages[conversationId] ?? [];
+        _localMessages[conversationId] = _mergeAndDeduplicate(msgs, localExisting);
         return List<MessageModel>.from(_localMessages[conversationId]!);
       }
     } catch (_) {}
-    return List<MessageModel>.from(_localMessages[conversationId] ?? []);
+    final local = _localMessages[conversationId] ?? [];
+    return List<MessageModel>.from(local.where((m) => !m.isDeletedForMe(me.id)));
   }
 
   static Future<MessageModel> sendMessage(
@@ -248,34 +719,35 @@ class ApiService {
       createdAt: DateTime.now(),
     );
 
+    // Save locally immediately for optimistic UI response
+    _localMessages.putIfAbsent(conversationId, () => []);
+    _localMessages[conversationId]!.add(finalMsg);
+
     // Post to Spring Boot backend
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/chat/conversations/$conversationId/messages'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
         body: jsonEncode({
           'senderId': me.id,
           'senderName': me.displayName,
           'senderAvatarUrl': me.avatarUrl,
           'content': content,
-          'type': type.name.toUpperCase(),
+          'type': type == MessageType.gameInvite ? 'GAME_INVITE' : type.name.toUpperCase(),
           'mediaUrl': mediaUrl,
         }),
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 8));
+
       if (res.statusCode == 200) {
         finalMsg = MessageModel.fromJson(jsonDecode(res.body));
+        _localMessages[conversationId]!.removeWhere((m) => m.id == tempId || m.id == finalMsg.id);
+        _localMessages[conversationId]!.add(finalMsg);
+        _localMessages[conversationId]!.sort((a, b) => a.createdAt.compareTo(b.createdAt));
       }
     } catch (_) {}
-
-    // Save locally without duplicate entries
-    _localMessages.putIfAbsent(conversationId, () => []);
-    _localMessages[conversationId]!.removeWhere((m) =>
-        m.id == finalMsg.id ||
-        m.id == tempId ||
-        (m.senderId == finalMsg.senderId &&
-            m.content == finalMsg.content &&
-            m.createdAt.difference(finalMsg.createdAt).abs().inSeconds <= 2));
-    _localMessages[conversationId]!.add(finalMsg);
 
     // Update conversation preview
     final convIndex = _localConversations.indexWhere((c) => c.id == conversationId);
@@ -284,16 +756,388 @@ class ApiService {
       _localConversations[convIndex] = ConversationModel(
         id: c.id,
         title: c.title,
+        description: c.description,
         isGroup: c.isGroup,
         avatarUrl: c.avatarUrl,
         participant1Id: c.participant1Id,
         participant2Id: c.participant2Id,
+        groupAdminIds: c.groupAdminIds,
+        participantIds: c.participantIds,
         lastMessagePreview: content,
         lastMessageAt: DateTime.now(),
       );
     }
 
     return finalMsg;
+  }
+
+  // ==========================================
+  // MESSAGE EDIT & DELETE
+  // ==========================================
+
+  static Future<MessageModel?> editMessage(String messageId, String newContent) async {
+    final me = currentUser;
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/chat/messages/$messageId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'senderId': me.id,
+          'content': newContent,
+        }),
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final updatedMsg = MessageModel.fromJson(jsonDecode(res.body));
+        _updateMessageInLocalCache(updatedMsg);
+        return updatedMsg;
+      } else {
+        final err = jsonDecode(res.body);
+        throw Exception(err['error'] ?? 'Failed to edit message');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  static Future<bool> deleteMessageForMe(String messageId, String conversationId) async {
+    final me = currentUser;
+    if (_localMessages.containsKey(conversationId)) {
+      _localMessages[conversationId]!.removeWhere((m) => m.id == messageId);
+    }
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/chat/messages/$messageId/me?userId=${me.id}'),
+      ).timeout(const Duration(seconds: 5));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> deleteMessageForEveryone(String messageId, String conversationId) async {
+    final me = currentUser;
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/chat/messages/$messageId/everyone?userId=${me.id}'),
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        if (_localMessages.containsKey(conversationId)) {
+          final list = _localMessages[conversationId]!;
+          final idx = list.indexWhere((m) => m.id == messageId);
+          if (idx != -1) {
+            final old = list[idx];
+            list[idx] = MessageModel(
+              id: old.id,
+              conversationId: old.conversationId,
+              senderId: old.senderId,
+              senderName: old.senderName,
+              senderAvatarUrl: old.senderAvatarUrl,
+              content: 'This message was deleted',
+              type: old.type,
+              mediaUrl: null,
+              isDeleted: true,
+              isEdited: old.isEdited,
+              editedAt: old.editedAt,
+              deletedForUserIds: old.deletedForUserIds,
+              deliveryStatus: old.deliveryStatus,
+              createdAt: old.createdAt,
+            );
+          }
+        }
+        return true;
+      } else {
+        final err = jsonDecode(res.body);
+        throw Exception(err['error'] ?? 'Could not delete for everyone');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  static void _updateMessageInLocalCache(MessageModel updated) {
+    if (_localMessages.containsKey(updated.conversationId)) {
+      final list = _localMessages[updated.conversationId]!;
+      final idx = list.indexWhere((m) => m.id == updated.id);
+      if (idx != -1) {
+        list[idx] = updated;
+      }
+    }
+  }
+
+  // ==========================================
+  // GROUP MANAGEMENT
+  // ==========================================
+
+  static Future<ConversationModel> createGroup({
+    required String title,
+    String? description,
+    String? avatarUrl,
+    required List<String> memberIds,
+  }) async {
+    final me = currentUser;
+    final allMembers = {me.id, ...memberIds}.toList();
+    final cleanTitle = title.trim().isNotEmpty ? title.trim() : 'New Group';
+    final cleanDesc = (description != null && description.trim().isNotEmpty) ? description.trim() : null;
+    final cleanAvatar = (avatarUrl != null && avatarUrl.trim().isNotEmpty) ? avatarUrl.trim() : null;
+
+    final payload = {
+      'title': cleanTitle,
+      'description': cleanDesc,
+      'avatarUrl': cleanAvatar,
+      'adminId': me.id,
+      'requesterId': me.id,
+      'memberIds': allMembers,
+    };
+
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/chat/groups'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final conv = ConversationModel.fromJson(jsonDecode(res.body));
+        _localConversations.removeWhere((c) => c.id == conv.id);
+        _localConversations.insert(0, conv);
+        return conv;
+      }
+    } catch (_) {}
+
+    // Fallback local group conversation to keep the UI resilient
+    final groupId = 'group_${DateTime.now().millisecondsSinceEpoch}';
+    final fallbackGroup = ConversationModel(
+      id: groupId,
+      title: cleanTitle,
+      description: cleanDesc,
+      isGroup: true,
+      avatarUrl: cleanAvatar,
+      participant1Id: me.id,
+      participant1Name: me.displayName,
+      participant1Avatar: me.avatarUrl,
+      groupAdminIds: [me.id],
+      participantIds: allMembers,
+      lastMessagePreview: '${me.displayName} created the group "$cleanTitle"',
+      lastMessageAt: DateTime.now(),
+    );
+    _localConversations.removeWhere((c) => c.id == fallbackGroup.id);
+    _localConversations.insert(0, fallbackGroup);
+
+    final sysMsg = MessageModel(
+      id: 'msg_sys_${DateTime.now().millisecondsSinceEpoch}',
+      conversationId: groupId,
+      senderId: me.id,
+      senderName: 'System',
+      content: '${me.displayName} created the group "$cleanTitle"',
+      type: 'SYSTEM',
+      createdAt: DateTime.now(),
+    );
+    _localMessages[groupId] = [sysMsg];
+
+    return fallbackGroup;
+  }
+
+  static Future<List<GroupMemberModel>> getGroupMembers(String conversationId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/chat/groups/$conversationId/members'),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => GroupMemberModel.fromJson(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> addGroupMember(String conversationId, String targetUserId) async {
+    final me = currentUser;
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/chat/groups/$conversationId/members'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'adminId': me.id,
+          'requesterId': me.id,
+          'userId': targetUserId,
+        }),
+      ).timeout(const Duration(seconds: 5));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> removeGroupMember(String conversationId, String targetUserId) async {
+    final me = currentUser;
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/chat/groups/$conversationId/members/$targetUserId?adminId=${me.id}&requesterId=${me.id}'),
+      ).timeout(const Duration(seconds: 5));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> leaveGroup(String conversationId) async {
+    final me = currentUser;
+    try {
+      final res = await http.delete(
+        Uri.parse('$baseUrl/chat/groups/$conversationId/members/${me.id}?adminId=${me.id}&requesterId=${me.id}'),
+      ).timeout(const Duration(seconds: 5));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<ConversationModel> updateGroupInfo(
+    String conversationId, {
+    String? title,
+    String? description,
+    String? avatarUrl,
+  }) async {
+    final me = currentUser;
+    try {
+      final res = await http.put(
+        Uri.parse('$baseUrl/chat/groups/$conversationId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'adminId': me.id,
+          'requesterId': me.id,
+          if (title != null) 'title': title,
+          if (description != null) 'description': description,
+          if (avatarUrl != null) 'avatarUrl': avatarUrl,
+        }),
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final updated = ConversationModel.fromJson(jsonDecode(res.body));
+        final idx = _localConversations.indexWhere((c) => c.id == conversationId);
+        if (idx != -1) {
+          _localConversations[idx] = updated;
+        }
+        return updated;
+      }
+    } catch (_) {}
+
+    final idx = _localConversations.indexWhere((c) => c.id == conversationId);
+    if (idx != -1) {
+      final existing = _localConversations[idx];
+      final updated = ConversationModel(
+        id: existing.id,
+        title: title ?? existing.title,
+        description: description ?? existing.description,
+        isGroup: true,
+        avatarUrl: avatarUrl ?? existing.avatarUrl,
+        participant1Id: existing.participant1Id,
+        participant1Name: existing.participant1Name,
+        participant1Avatar: existing.participant1Avatar,
+        groupAdminIds: existing.groupAdminIds,
+        participantIds: existing.participantIds,
+        lastMessagePreview: existing.lastMessagePreview,
+        lastMessageAt: existing.lastMessageAt,
+      );
+      _localConversations[idx] = updated;
+      return updated;
+    }
+    throw Exception('Failed to update group');
+  }
+
+  // ==========================================
+  // AUDIO & VIDEO CALLING
+  // ==========================================
+
+  static Future<CallSessionModel> initiateCall({
+    required String conversationId,
+    required String receiverId,
+    required String receiverName,
+    required String callType,
+  }) async {
+    final me = currentUser;
+    final payload = {
+      'conversationId': conversationId,
+      'callerId': me.id,
+      'callerName': me.displayName,
+      'callerAvatarUrl': me.avatarUrl,
+      'receiverId': receiverId,
+      'receiverName': receiverName,
+      'callType': callType,
+    };
+    final res = await http.post(
+      Uri.parse('$baseUrl/calls/initiate'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 6));
+
+    if (res.statusCode == 200) {
+      return CallSessionModel.fromJson(jsonDecode(res.body));
+    } else {
+      final err = jsonDecode(res.body);
+      throw Exception(err['error'] ?? 'Could not initiate call');
+    }
+  }
+
+  static Future<CallSessionModel?> acceptCall(String callId) async {
+    try {
+      final res = await http.post(Uri.parse('$baseUrl/calls/$callId/accept')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return CallSessionModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<CallSessionModel?> rejectCall(String callId) async {
+    try {
+      final res = await http.post(Uri.parse('$baseUrl/calls/$callId/reject')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return CallSessionModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<CallSessionModel?> endCall(String callId, {int durationSeconds = 0}) async {
+    try {
+      final res = await http.post(Uri.parse('$baseUrl/calls/$callId/end?durationSeconds=$durationSeconds')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return CallSessionModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<CallSessionModel?> getActiveCallForUser() async {
+    final me = currentUser;
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/calls/active?userId=${me.id}')).timeout(const Duration(seconds: 3));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data != null && data['id'] != null) {
+          return CallSessionModel.fromJson(data);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<List<Map<String, dynamic>>> getIceServers() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/calls/ice-servers')).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (_) {}
+    return [
+      {'urls': 'stun:stun.l.google.com:19302'}
+    ];
   }
 
   // ==========================================
@@ -403,6 +1247,9 @@ class ApiService {
     String? statusMessage,
     String? themePreference,
     String? appIconPreference,
+    String? softwareName,
+    String? customLogoUrl,
+    bool? isPrivate,
   }) async {
     final me = currentUser;
     final updated = UserModel(
@@ -417,14 +1264,31 @@ class ApiService {
       safetyScore: me.safetyScore,
       isVerified: me.isVerified,
       isOnline: me.isOnline,
+      isPrivate: isPrivate ?? me.isPrivate,
+      appIconPreference: appIconPreference ?? me.appIconPreference,
+      themePreference: themePreference ?? me.themePreference,
+      softwareName: softwareName ?? me.softwareName,
+      customLogoUrl: customLogoUrl ?? me.customLogoUrl,
     );
 
     currentUser = updated;
+    if (appIconPreference != null && appIconPreference.isNotEmpty) {
+      currentAppIconNotifier.value = appIconPreference;
+    }
+    if (themePreference != null && themePreference.isNotEmpty) {
+      AppTheme.currentThemeNotifier.value = AppTheme.fromString(themePreference);
+    }
+    if (softwareName != null && softwareName.isNotEmpty) {
+      softwareNameNotifier.value = softwareName;
+    }
+    if (customLogoUrl != null && customLogoUrl.isNotEmpty) {
+      customLogoDataNotifier.value = customLogoUrl;
+    }
 
     try {
       final res = await http.put(
         Uri.parse('$baseUrl/auth/profile/${me.id}'),
-        headers: {'Content-Type': 'application/json'},
+        headers: authHeaders,
         body: jsonEncode({
           if (displayName != null) 'displayName': displayName,
           if (username != null) 'username': username,
@@ -435,6 +1299,9 @@ class ApiService {
           if (statusMessage != null) 'statusMessage': statusMessage,
           if (themePreference != null) 'themePreference': themePreference,
           if (appIconPreference != null) 'appIconPreference': appIconPreference,
+          if (softwareName != null) 'softwareName': softwareName,
+          if (customLogoUrl != null) 'customLogoUrl': customLogoUrl,
+          if (isPrivate != null) 'isPrivate': isPrivate,
         }),
       ).timeout(const Duration(seconds: 4));
 

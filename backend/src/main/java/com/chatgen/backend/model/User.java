@@ -87,8 +87,25 @@ public class User {
     public String getAppIconPreference() { return appIconPreference; }
     public void setAppIconPreference(String appIconPreference) { this.appIconPreference = appIconPreference; }
 
+    @Column(length = 150)
+    private String softwareName = "ChatGuard Next-Gen Chat";
+
+    @Column(columnDefinition = "TEXT")
+    private String customLogoUrl;
+
+    public String getSoftwareName() { return softwareName; }
+    public void setSoftwareName(String softwareName) { this.softwareName = softwareName; }
+
+    public String getCustomLogoUrl() { return customLogoUrl; }
+    public void setCustomLogoUrl(String customLogoUrl) { this.customLogoUrl = customLogoUrl; }
+
     public Boolean getIsVerified() { return isVerified; }
     public void setIsVerified(Boolean verified) { isVerified = verified; }
+
+    private Boolean isPrivate = false;
+
+    public Boolean getIsPrivate() { return isPrivate != null ? isPrivate : false; }
+    public void setIsPrivate(Boolean isPrivate) { this.isPrivate = isPrivate; }
 
     public Instant getLastSeen() { return lastSeen; }
     public void setLastSeen(Instant lastSeen) { this.lastSeen = lastSeen; }

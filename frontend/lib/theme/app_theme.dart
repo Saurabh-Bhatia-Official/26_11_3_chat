@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum AppThemeMode {
   obsidianNeon,
@@ -9,6 +11,43 @@ enum AppThemeMode {
 }
 
 class AppTheme {
+  static final ValueNotifier<AppThemeMode> currentThemeNotifier =
+      ValueNotifier<AppThemeMode>(AppThemeMode.obsidianNeon);
+
+  static AppThemeMode get currentTheme => currentThemeNotifier.value;
+
+  static AppThemeMode fromString(String? name) {
+    if (name == null || name.trim().isEmpty) return AppThemeMode.obsidianNeon;
+    final clean = name.trim().toLowerCase();
+    for (var m in AppThemeMode.values) {
+      if (m.name.toLowerCase() == clean) return m;
+    }
+    if (clean == 'dark_neon' || clean == 'dark' || clean == 'obsidian') {
+      return AppThemeMode.obsidianNeon;
+    }
+    if (clean == 'light' || clean == 'minimal') {
+      return AppThemeMode.minimalLight;
+    }
+    if (clean == 'sapphire' || clean == 'blue') {
+      return AppThemeMode.royalSapphire;
+    }
+    if (clean == 'emerald' || clean == 'green' || clean == 'mint') {
+      return AppThemeMode.emeraldMint;
+    }
+    return AppThemeMode.obsidianNeon;
+  }
+
+  static void Function(AppThemeMode)? onThemeChanged;
+
+  static Future<void> setTheme(AppThemeMode mode) async {
+    currentThemeNotifier.value = mode;
+    onThemeChanged?.call(mode);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('theme_preference', mode.name);
+    } catch (_) {}
+  }
+
   static ThemeData getTheme(AppThemeMode mode) {
     switch (mode) {
       case AppThemeMode.royalSapphire:
@@ -45,7 +84,6 @@ class AppTheme {
           textSecondary: const Color(0xFF64748B),
         );
       case AppThemeMode.obsidianNeon:
-      default:
         return _buildTheme(
           brightness: Brightness.dark,
           primary: const Color(0xFF06B6D4), // Cyan neon
@@ -145,3 +183,63 @@ class AppTheme {
     );
   }
 }
+
+class AppIconHelper {
+  static const List<Map<String, dynamic>> options = [
+    {
+      'id': 'neon_pulse',
+      'name': 'Neon Pulse',
+      'icon': Icons.bolt,
+      'color': Color(0xFF06B6D4),
+      'description': 'Electric cyan high-energy pulse',
+    },
+    {
+      'id': 'cyber_shield',
+      'name': 'Cyber Shield',
+      'icon': Icons.security,
+      'color': Color(0xFF10B981),
+      'description': 'Emerald defensive guardian',
+    },
+    {
+      'id': 'cosmic_night',
+      'name': 'Cosmic Night',
+      'icon': Icons.dark_mode,
+      'color': Color(0xFF8B5CF6),
+      'description': 'Mystic violet astronomical nebula',
+    },
+    {
+      'id': 'solar_flare',
+      'name': 'Solar Flare',
+      'icon': Icons.local_fire_department,
+      'color': Color(0xFFF59E0B),
+      'description': 'Radiant amber solar intensity',
+    },
+  ];
+
+  static Map<String, dynamic> getIcon(String? id) {
+    if (id == null || id.isEmpty) return options.first;
+    return options.firstWhere(
+      (opt) => opt['id'] == id,
+      orElse: () => options.first,
+    );
+  }
+
+  static String getPresetSvgFaviconDataUri(String? id) {
+    switch (id) {
+      case 'cyber_shield':
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10B981"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#g)"/><path d="M50 20 L75 32 V55 C75 70 50 82 50 82 C50 82 25 70 25 55 V32 Z" fill="#FFFFFF"/></svg>';
+        return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';
+      case 'cosmic_night':
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#8B5CF6"/><stop offset="100%" stop-color="#6366F1"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#g)"/><path d="M60 25 A 30 30 0 1 0 75 70 A 25 25 0 0 1 60 25 Z" fill="#FFFFFF"/></svg>';
+        return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';
+      case 'solar_flare':
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F59E0B"/><stop offset="100%" stop-color="#EF4444"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#g)"/><path d="M50 20 C50 20 65 40 65 55 C65 68 55 78 50 80 C45 78 35 68 35 55 C35 40 50 20 50 20 Z" fill="#FFFFFF"/></svg>';
+        return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';
+      case 'neon_pulse':
+      default:
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#06B6D4"/><stop offset="100%" stop-color="#3B82F6"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#g)"/><polygon points="56,18 32,52 48,52 44,82 68,48 52,48" fill="#FFFFFF"/></svg>';
+        return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';
+    }
+  }
+}
+

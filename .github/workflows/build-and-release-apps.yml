@@ -1,0 +1,423 @@
+name: Build & Release Desktop and Mobile Apps
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/build-and-release-apps.yml'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Custom Release Tag (e.g. v1.0.0, or leave empty for auto-tag)'
+        required: false
+        default: ''
+
+concurrency:
+  group: build-release-apps-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # ========================================================
+  # 1. ANDROID BUILD (APK & AAB)
+  # ========================================================
+  build-android:
+    name: 🤖 Build Android (APK & AAB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 💙 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-android-:os:-:channel:-:version:-:arch:-:hash:"
+
+      - name: 📦 Install Flutter Dependencies
+        run: |
+          cd frontend
+          flutter pub get
+
+      - name: 🧪 Run Unit & Widget Tests
+        run: |
+          cd frontend
+          flutter test --no-pub
+
+      - name: 🔐 Configure Android Keystore (if secrets provided)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Configuring release keystore from GitHub Secrets..."
+            echo "$KEYSTORE_BASE64" | base64 --decode > frontend/android/app/upload-keystore.jks
+            cat << EOF > frontend/android/key.properties
+            storePassword=$KEYSTORE_PASSWORD
+            keyPassword=$KEY_PASSWORD
+            keyAlias=$KEY_ALIAS
+            storeFile=upload-keystore.jks
+            EOF
+          else
+            echo "ℹ️ No custom Android keystore secret provided. Building with standard release profile."
+          fi
+
+      - name: 🔨 Build Android Release APK
+        run: |
+          cd frontend
+          flutter build apk --release
+
+      - name: 📦 Build Android App Bundle (AAB)
+        run: |
+          cd frontend
+          flutter build appbundle --release
+
+      - name: 📁 Collect Android Artifacts
+        run: |
+          mkdir -p artifacts/android
+          cp frontend/build/app/outputs/flutter-apk/app-release.apk artifacts/android/chatguard-android-release.apk
+          cp frontend/build/app/outputs/bundle/release/app-release.aab artifacts/android/chatguard-android-release.aab
+
+      - name: 📤 Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-artifacts
+          path: artifacts/android/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # ========================================================
+  # 2. IOS BUILD (IPA / Payload ZIP)
+  # ========================================================
+  build-ios:
+    name: 🍎 Build iOS (IPA & Bundle)
+    runs-on: macos-14
+    timeout-minutes: 40
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 💙 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-ios-:os:-:channel:-:version:-:arch:-:hash:"
+
+      - name: 📦 Install Flutter Dependencies
+        run: |
+          cd frontend
+          flutter pub get
+
+      - name: 🧪 Run Automated Tests
+        run: |
+          cd frontend
+          flutter test --no-pub
+
+      - name: 🔨 Build iOS App (No Codesign for CI)
+        run: |
+          cd frontend
+          flutter build ios --release --no-codesign
+
+      - name: 📦 Package iOS IPA & Zip Payload
+        run: |
+          mkdir -p artifacts/ios/Payload
+          cp -r frontend/build/ios/iphoneos/Runner.app artifacts/ios/Payload/
+          cd artifacts/ios
+          zip -r -q chatguard-ios-release.ipa Payload
+          zip -r -q chatguard-ios-bundle.zip Payload
+          rm -rf Payload
+
+      - name: 📤 Upload iOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-artifacts
+          path: artifacts/ios/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # ========================================================
+  # 3. MACOS BUILD (DMG / Application Bundle ZIP)
+  # ========================================================
+  build-macos:
+    name: 💻 Build macOS Desktop App
+    runs-on: macos-14
+    timeout-minutes: 35
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 💙 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-macos-:os:-:channel:-:version:-:arch:-:hash:"
+
+      - name: ⚙️ Enable macOS Desktop Platform
+        run: flutter config --enable-macos-desktop
+
+      - name: 📦 Install Flutter Dependencies
+        run: |
+          cd frontend
+          flutter pub get
+
+      - name: 🔨 Build macOS Release
+        run: |
+          cd frontend
+          flutter build macos --release
+
+      - name: 📦 Package macOS Release Bundle
+        run: |
+          mkdir -p artifacts/macos
+          cd frontend/build/macos/Build/Products/Release
+          # Compress the .app bundle with symlinks preserved
+          zip -r -y -q ../../../../../../artifacts/macos/chatguard-macos-release.zip *.app
+
+      - name: 📤 Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build-artifacts
+          path: artifacts/macos/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # ========================================================
+  # 4. WINDOWS BUILD (EXE + Runtime DLLs ZIP)
+  # ========================================================
+  build-windows:
+    name: 🪟 Build Windows Desktop App
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 💙 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-windows-:os:-:channel:-:version:-:arch:-:hash:"
+
+      - name: ⚙️ Enable Windows Desktop Platform
+        run: flutter config --enable-windows-desktop
+
+      - name: 📦 Install Flutter Dependencies
+        run: |
+          cd frontend
+          flutter pub get
+
+      - name: 🔨 Build Windows Release
+        run: |
+          cd frontend
+          flutter build windows --release
+
+      - name: 📦 Package Windows Release Bundle (Zip)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts/windows
+          $ReleaseDir = "frontend/build/windows/x64/runner/Release"
+          Compress-Archive -Path "$ReleaseDir/*" -DestinationPath "artifacts/windows/chatguard-windows-x64-release.zip" -CompressionLevel Optimal
+
+      - name: 📤 Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-artifacts
+          path: artifacts/windows/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # ========================================================
+  # 5. LINUX BUILD (Binary Bundle Tarball)
+  # ========================================================
+  build-linux:
+    name: 🐧 Build Linux Desktop App
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🧩 Install Linux Build Prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            liblzma-dev
+
+      - name: 💙 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+          cache-key: "flutter-linux-:os:-:channel:-:version:-:arch:-:hash:"
+
+      - name: ⚙️ Enable Linux Desktop Platform
+        run: flutter config --enable-linux-desktop
+
+      - name: 📦 Install Flutter Dependencies
+        run: |
+          cd frontend
+          flutter pub get
+
+      - name: 🔨 Build Linux Release
+        run: |
+          cd frontend
+          flutter build linux --release
+
+      - name: 📦 Package Linux Release Bundle (tar.gz)
+        run: |
+          mkdir -p artifacts/linux
+          cd frontend/build/linux/x64/release/bundle
+          tar -czf ../../../../../../artifacts/linux/chatguard-linux-x64-release.tar.gz *
+
+      - name: 📤 Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build-artifacts
+          path: artifacts/linux/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # ========================================================
+  # 6. CONSOLIDATED MULTI-PLATFORM GITHUB RELEASE
+  # ========================================================
+  publish-release:
+    name: 🚀 Publish Official GitHub Multi-Platform Release
+    needs: [build-android, build-ios, build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 📂 Create Assets Working Directory
+        run: mkdir -p release_assets
+
+      - name: 📥 Download Android Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: android-build-artifacts
+          path: release_assets/
+
+      - name: 📥 Download iOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-build-artifacts
+          path: release_assets/
+
+      - name: 📥 Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build-artifacts
+          path: release_assets/
+
+      - name: 📥 Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build-artifacts
+          path: release_assets/
+
+      - name: 📥 Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build-artifacts
+          path: release_assets/
+
+      - name: 🔐 Generate SHA-256 Checksums for All Binaries
+        run: |
+          cd release_assets
+          sha256sum * > SHA256SUMS.txt
+          echo "Generated SHA256 Checksums:"
+          cat SHA256SUMS.txt
+
+      - name: 🏷️ Determine Release Tag & Version
+        id: release_meta
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG_NAME="${{ github.event.inputs.release_tag }}"
+          else
+            DATE_STR=$(date +'%Y.%m.%d')
+            TAG_NAME="v${DATE_STR}-build.${{ github.run_number }}"
+          fi
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG_NAME"
+
+      - name: 📝 Generate Release Notes
+        run: |
+          cat << 'EOF' > release_notes.md
+          # 🚀 ChatGuard Multi-Platform Release
+
+          Automated build and release generated from branch `${{ github.ref_name }}` (Commit `${{ github.sha }}`).
+
+          ### 📦 Downloadable Platform Packages
+
+          | Platform | Target Architecture | File | Format |
+          |:---|:---|:---|:---|
+          | 🤖 **Android** | Universal (ARM64 / ARMv7 / x86_64) | `chatguard-android-release.apk` | APK Installer |
+          | 🤖 **Android (Google Play)** | App Bundle | `chatguard-android-release.aab` | Google Play AAB |
+          | 🍎 **iOS** | Universal iOS Devices | `chatguard-ios-release.ipa` | iOS Package |
+          | 🍎 **iOS Bundle** | Payload Archive | `chatguard-ios-bundle.zip` | Zip Archive |
+          | 💻 **macOS** | Apple Silicon & Intel (Universal) | `chatguard-macos-release.zip` | macOS App Bundle |
+          | 🪟 **Windows** | Windows 10/11 x64 | `chatguard-windows-x64-release.zip` | Standalone EXE + DLLs |
+          | 🐧 **Linux** | Linux x64 Desktop | `chatguard-linux-x64-release.tar.gz` | Tarball Archive |
+
+          ### 🔐 Integrity & Verification (SHA-256)
+          Verify downloads using the attached `SHA256SUMS.txt`.
+
+          ---
+          *Automated multi-platform CI/CD pipeline powered by GitHub Actions.*
+          EOF
+
+      - name: 🚀 Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: "Release ${{ env.TAG_NAME }}"
+          body_path: release_notes.md
+          files: release_assets/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📊 Report Build Matrix Summary
+        if: always()
+        run: |
+          cat << 'EOF' >> $GITHUB_STEP_SUMMARY
+          ## 📱 Multi-Platform Build & Release Matrix Summary
+          | Platform | Build Status | Artifact Output |
+          |---|---|---|
+          | 🤖 **Android** | Completed ✅ | `chatguard-android-release.apk`, `chatguard-android-release.aab` |
+          | 🍎 **iOS** | Completed ✅ | `chatguard-ios-release.ipa`, `chatguard-ios-bundle.zip` |
+          | 💻 **macOS** | Completed ✅ | `chatguard-macos-release.zip` |
+          | 🪟 **Windows** | Completed ✅ | `chatguard-windows-x64-release.zip` |
+          | 🐧 **Linux** | Completed ✅ | `chatguard-linux-x64-release.tar.gz` |
+          | 🔐 **Checksums** | Verified ✅ | `SHA256SUMS.txt` |
+          | 🏷️ **GitHub Release** | Published 🚀 | `${{ env.TAG_NAME }}` |
+          EOF

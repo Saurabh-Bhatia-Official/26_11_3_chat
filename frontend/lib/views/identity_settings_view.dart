@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_container.dart';
+import '../widgets/software_logo_widget.dart';
 
 class IdentitySettingsView extends StatefulWidget {
   final AppThemeMode currentThemeMode;
@@ -18,6 +22,7 @@ class IdentitySettingsView extends StatefulWidget {
 }
 
 class _IdentitySettingsViewState extends State<IdentitySettingsView> {
+  late final TextEditingController _softwareNameController;
   late final TextEditingController _nameController;
   late final TextEditingController _usernameController;
   late final TextEditingController _emailController;
@@ -27,23 +32,14 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
   late final TextEditingController _avatarUrlController;
 
   bool _isSaving = false;
+  bool _isUploadingAvatar = false;
+  bool _isUploadingSoftwareLogo = false;
+  bool _isPrivate = false;
+  Uint8List? _pickedAvatarBytes;
+  String? _pickedAvatarFilename;
   String selectedIcon = 'neon_pulse';
 
-  final List<Map<String, dynamic>> icons = [
-    {'id': 'neon_pulse', 'name': 'Neon Pulse', 'icon': Icons.bolt, 'color': const Color(0xFF06B6D4)},
-    {'id': 'cyber_shield', 'name': 'Cyber Shield', 'icon': Icons.security, 'color': const Color(0xFF10B981)},
-    {'id': 'cosmic_night', 'name': 'Cosmic Night', 'icon': Icons.dark_mode, 'color': const Color(0xFF8B5CF6)},
-    {'id': 'solar_flare', 'name': 'Solar Flare', 'icon': Icons.local_fire_department, 'color': const Color(0xFFF59E0B)},
-  ];
-
-  final List<String> _avatarPresets = [
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300',
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300',
-    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300',
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300',
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300',
-    'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=300',
-  ];
+  final List<Map<String, dynamic>> icons = AppIconHelper.options;
 
   final List<String> _quickStatusList = [
     'Available',
@@ -58,6 +54,9 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
   void initState() {
     super.initState();
     final user = ApiService.currentUser;
+    _isPrivate = user.isPrivate;
+    selectedIcon = user.appIconPreference.isNotEmpty ? user.appIconPreference : ApiService.currentAppIcon;
+    _softwareNameController = TextEditingController(text: ApiService.softwareName);
     _nameController = TextEditingController(text: user.displayName);
     _usernameController = TextEditingController(text: user.username);
     _emailController = TextEditingController(text: user.email ?? '');
@@ -65,10 +64,30 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     _bioController = TextEditingController(text: user.bio);
     _statusController = TextEditingController(text: user.statusMessage);
     _avatarUrlController = TextEditingController(text: user.avatarUrl ?? '');
+    ApiService.currentUserNotifier.addListener(_onUserChanged);
+  }
+
+  void _onUserChanged() {
+    final user = ApiService.currentUserNotifier.value;
+    if (user != null && mounted) {
+      setState(() {
+        _isPrivate = user.isPrivate;
+        selectedIcon = user.appIconPreference.isNotEmpty ? user.appIconPreference : ApiService.currentAppIcon;
+        _nameController.text = user.displayName;
+        _usernameController.text = user.username;
+        _emailController.text = user.email ?? '';
+        _phoneController.text = user.phone ?? '';
+        _bioController.text = user.bio;
+        _statusController.text = user.statusMessage;
+        _avatarUrlController.text = user.avatarUrl ?? '';
+      });
+    }
   }
 
   @override
   void dispose() {
+    ApiService.currentUserNotifier.removeListener(_onUserChanged);
+    _softwareNameController.dispose();
     _nameController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
@@ -79,8 +98,253 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     super.dispose();
   }
 
+  ImageProvider? _getAvatarImageProvider() {
+    if (_pickedAvatarBytes != null) {
+      return MemoryImage(_pickedAvatarBytes!);
+    }
+    final url = _avatarUrlController.text.trim();
+    if (url.isNotEmpty) {
+      if (url.startsWith('data:image')) {
+        try {
+          final commaIdx = url.indexOf(',');
+          final base64Str = commaIdx != -1 ? url.substring(commaIdx + 1) : url;
+          return MemoryImage(base64Decode(base64Str));
+        } catch (_) {}
+      } else {
+        return NetworkImage(url);
+      }
+    }
+    return null;
+  }
+
+  void _pickAvatarFromDevice() async {
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+      );
+
+      if (file == null) return;
+
+      final extension = file.extension?.toLowerCase() ?? '';
+      if (!['jpg', 'jpeg', 'png', 'webp'].contains(extension)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select an image in JPG, PNG, or WEBP format.'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+        return;
+      }
+
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not read the selected image data.'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+        return;
+      }
+
+      setState(() {
+        _pickedAvatarBytes = bytes;
+        _pickedAvatarFilename = file.name;
+        _isUploadingAvatar = true;
+      });
+
+      // Upload and update user profile immediately
+      final uploadedUrl = await ApiService.uploadMedia(bytes, file.name);
+      if (uploadedUrl != null) {
+        _avatarUrlController.text = uploadedUrl;
+        await ApiService.updateProfile(avatarUrl: uploadedUrl);
+        if (mounted) {
+          setState(() => _isUploadingAvatar = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text('Avatar uploaded and updated successfully (${file.name})!'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF10B981),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isUploadingAvatar = false);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to pick or upload avatar: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeAvatar() async {
+    setState(() {
+      _pickedAvatarBytes = null;
+      _pickedAvatarFilename = null;
+      _avatarUrlController.clear();
+      _isUploadingAvatar = true;
+    });
+
+    await ApiService.updateProfile(avatarUrl: '');
+    if (mounted) {
+      setState(() => _isUploadingAvatar = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Avatar removed. Initials will be used.'),
+          backgroundColor: Color(0xFF06B6D4),
+        ),
+      );
+    }
+  }
+
+  void _selectAppIcon(Map<String, dynamic> item) async {
+    final iconId = item['id'] as String;
+    setState(() => selectedIcon = iconId);
+    await ApiService.setAppIcon(iconId);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(milliseconds: 1500),
+          backgroundColor: item['color'] as Color,
+          content: Row(
+            children: [
+              Icon(item['icon'] as IconData, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text('Active software & home icon updated to ${item['name']}!'),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  void _pickCustomSoftwareLogo() async {
+    try {
+      final file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'svg', 'webp', 'ico'],
+      );
+
+      if (file == null) return;
+
+      setState(() => _isUploadingSoftwareLogo = true);
+
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        if (mounted) {
+          setState(() => _isUploadingSoftwareLogo = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not read the selected image file.'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+        return;
+      }
+
+      final ext = file.extension?.toLowerCase() ?? 'png';
+      final mime = ext == 'svg'
+          ? 'image/svg+xml'
+          : (ext == 'ico' ? 'image/x-icon' : 'image/$ext');
+      final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+
+      // Immediate local UI response
+      await ApiService.setCustomLogo(dataUrl);
+
+      // Upload to cloud media storage and persist cloud URL to cloud database
+      final uploadedUrl = await ApiService.uploadMedia(bytes, file.name);
+      if (uploadedUrl != null && !uploadedUrl.startsWith('data:')) {
+        await ApiService.setCustomLogo(uploadedUrl);
+      }
+
+      if (mounted) {
+        setState(() => _isUploadingSoftwareLogo = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.cloud_done, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Software logo & system favicon updated & saved to cloud (${file.name})!'),
+                ),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingSoftwareLogo = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error selecting logo file: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+  void _removeCustomSoftwareLogo() async {
+    await ApiService.resetCustomLogo();
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Custom logo removed. Preset system icon restored.'),
+          backgroundColor: Color(0xFF06B6D4),
+        ),
+      );
+    }
+  }
+
+  void _saveSoftwareName() async {
+    final newName = _softwareNameController.text.trim();
+    await ApiService.setSoftwareName(newName);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.cloud_done, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Software name updated to "$newName" & saved to cloud!'),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+        ),
+      );
+    }
+  }
+
   void _saveProfile() async {
     setState(() => _isSaving = true);
+
+    await ApiService.setSoftwareName(_softwareNameController.text.trim());
 
     await ApiService.updateProfile(
       displayName: _nameController.text.trim(),
@@ -90,13 +354,24 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
       bio: _bioController.text.trim(),
       avatarUrl: _avatarUrlController.text.trim(),
       statusMessage: _statusController.text.trim(),
+      appIconPreference: selectedIcon,
+      themePreference: widget.currentThemeMode.name,
+      softwareName: _softwareNameController.text.trim(),
+      customLogoUrl: ApiService.customLogoData,
+      isPrivate: _isPrivate,
     );
 
     if (mounted) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Profile & Identity updated and saved successfully!'),
+          content: Row(
+            children: [
+              Icon(Icons.cloud_done, color: Colors.white, size: 20),
+              SizedBox(width: 8),
+              Expanded(child: Text('Profile, branding, and theme saved to cloud successfully!')),
+            ],
+          ),
           backgroundColor: Color(0xFF10B981),
         ),
       );
@@ -146,13 +421,35 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Color Theme & Appearance',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Color Theme & Appearance',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.cloud_done, size: 12, color: Color(0xFF10B981)),
+                          SizedBox(width: 4),
+                          Text('Cloud Stored', style: TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Select from curated, high-contrast, accessible palettes:',
+                  'Select from curated, high-contrast, accessible palettes (persisted in cloud database):',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
@@ -191,35 +488,283 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
           ),
           const SizedBox(height: 24),
 
-          // Launcher Icon Selector Section
+          // Software Branding, Name & System Icon Customization
           GlassContainer(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF06B6D4).withOpacity(0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF06B6D4).withOpacity(0.3)),
+                      ),
+                      child: const Icon(Icons.branding_watermark, color: Color(0xFF06B6D4), size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Software Branding & System Logo',
+                                  style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF06B6D4).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFF06B6D4).withOpacity(0.4)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.cloud_done, size: 12, color: Color(0xFF06B6D4)),
+                                    SizedBox(width: 4),
+                                    Text('Cloud Synced', style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Text(
+                            'Customize software name, app logo, and favicon (saved to cloud database)',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+
+                // Live Browser Tab Preview Mockup
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A0F1D),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.tab, size: 14, color: Colors.white38),
+                          SizedBox(width: 6),
+                          Text(
+                            'BROWSER TAB & SYSTEM BAR PREVIEW',
+                            style: TextStyle(fontSize: 10, letterSpacing: 0.8, fontWeight: FontWeight.bold, color: Colors.white38),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF06B6D4).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SoftwareLogoWidget(size: 20, iconSize: 12, borderRadius: 5, showShadow: false),
+                            const SizedBox(width: 8),
+                            ValueListenableBuilder<String>(
+                              valueListenable: ApiService.softwareNameNotifier,
+                              builder: (context, name, _) {
+                                return ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 240),
+                                  child: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 12),
+                            const Icon(Icons.close, size: 14, color: Colors.white38),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // 1. Software Name Input
                 const Text(
-                  'Approved Launcher Icon Choices',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  'Software / Application Name',
+                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _softwareNameController,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Enter custom software name...',
+                          prefixIcon: const Icon(Icons.edit_attributes, color: Color(0xFF06B6D4)),
+                          filled: true,
+                          fillColor: const Color(0xFF131D2E),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.white12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.white12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF06B6D4)),
+                          ),
+                        ),
+                        onSubmitted: (_) => _saveSoftwareName(),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF06B6D4),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.save, size: 18),
+                      label: const Text('Apply Name'),
+                      onPressed: _saveSoftwareName,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // 2. Software Logo & System Icon
+                const Text(
+                  'Software Logo & System Favicon',
+                  style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Choose an icon for supported platforms without altering signed package IDs:',
+                  'Pick an image file from your computer (PNG, JPG, SVG, WEBP, ICO) or choose a preset:',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
+                const SizedBox(height: 12),
+
+                // File Picker Action Card
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF131D2E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Row(
+                    children: [
+                      const SoftwareLogoWidget(size: 52, iconSize: 28, borderRadius: 14),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ValueListenableBuilder<String?>(
+                              valueListenable: ApiService.customLogoDataNotifier,
+                              builder: (context, customLogo, _) {
+                                final isCustom = customLogo != null && customLogo.isNotEmpty;
+                                return Text(
+                                  isCustom ? 'Custom System Logo Active' : 'Preset System Icon Active',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Updates browser favicon and entire app logo live',
+                              style: TextStyle(color: Colors.white54, fontSize: 11),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  icon: _isUploadingSoftwareLogo
+                                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                      : const Icon(Icons.file_upload_outlined, size: 18),
+                                  label: Text(_isUploadingSoftwareLogo ? 'Processing...' : 'Pick from Device (File Picker)'),
+                                  onPressed: _isUploadingSoftwareLogo ? null : _pickCustomSoftwareLogo,
+                                ),
+                                ValueListenableBuilder<String?>(
+                                  valueListenable: ApiService.customLogoDataNotifier,
+                                  builder: (context, customLogo, _) {
+                                    if (customLogo == null || customLogo.isEmpty) return const SizedBox.shrink();
+                                    return OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.white70,
+                                        side: const BorderSide(color: Colors.white24),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      icon: const Icon(Icons.restore, size: 16),
+                                      label: const Text('Reset to Preset Icon'),
+                                      onPressed: _removeCustomSoftwareLogo,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
+
+                // Preset Icons Section
+                const Text(
+                  'Or Select a Preset System Icon:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
                 Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
+                  spacing: 12,
+                  runSpacing: 12,
                   children: icons.map((item) {
-                    final isSelected = selectedIcon == item['id'];
+                    final isSelected = selectedIcon == item['id'] && ApiService.customLogoData == null;
                     return InkWell(
-                      onTap: () => setState(() => selectedIcon = item['id']),
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () async {
+                        await ApiService.resetCustomLogo();
+                        _selectAppIcon(item);
+                      },
                       child: Container(
-                        width: 130,
-                        padding: const EdgeInsets.all(12),
+                        width: 125,
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: isSelected ? const Color(0xFF1E293B) : Colors.black26,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected ? const Color(0xFF06B6D4) : Colors.white10,
                             width: isSelected ? 2 : 1,
@@ -228,11 +773,11 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                         child: Column(
                           children: [
                             CircleAvatar(
-                              radius: 26,
+                              radius: 22,
                               backgroundColor: (item['color'] as Color).withOpacity(0.2),
-                              child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 28),
+                              child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 24),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               item['name'],
                               style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
@@ -287,81 +832,179 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                 ),
                 const SizedBox(height: 20),
 
-                // 1. Profile Photo / Avatar Editor
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    CircleAvatar(
-                      radius: 38,
-                      backgroundColor: const Color(0xFF06B6D4).withValues(alpha: 0.25),
-                      backgroundImage: _avatarUrlController.text.isNotEmpty
-                          ? NetworkImage(_avatarUrlController.text)
-                          : null,
-                      child: _avatarUrlController.text.isEmpty
-                          ? Text(
-                              _nameController.text.isNotEmpty ? _nameController.text[0].toUpperCase() : '?',
-                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF06B6D4)),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 18),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                // 1. Profile Photo / Avatar Editor with Device File Picker
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 450;
+                      final avatarWidget = Stack(
+                        alignment: Alignment.bottomRight,
                         children: [
-                          const Text('Profile Photo URL', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _avatarUrlController,
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
-                            onChanged: (_) => setState(() {}),
-                            decoration: InputDecoration(
-                              hintText: 'Paste custom photo or Cloudinary URL',
-                              prefixIcon: const Icon(Icons.photo_camera, color: Colors.white54, size: 18),
-                              suffixIcon: _avatarUrlController.text.isNotEmpty
-                                  ? IconButton(
-                                      icon: const Icon(Icons.clear, size: 18, color: Colors.white38),
-                                      onPressed: () {
-                                        _avatarUrlController.clear();
-                                        setState(() {});
-                                      },
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF06B6D4), width: 2.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF06B6D4).withValues(alpha: 0.25),
+                                  blurRadius: 14,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 46,
+                              backgroundColor: const Color(0xFF06B6D4).withValues(alpha: 0.2),
+                              backgroundImage: _getAvatarImageProvider(),
+                              child: _getAvatarImageProvider() == null
+                                  ? Text(
+                                      _nameController.text.isNotEmpty ? _nameController.text[0].toUpperCase() : '?',
+                                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF06B6D4)),
                                     )
                                   : null,
                             ),
                           ),
+                          if (_isUploadingAvatar)
+                            Positioned.fill(
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 26,
+                                    height: 26,
+                                    child: CircularProgressIndicator(color: Color(0xFF06B6D4), strokeWidth: 2.5),
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            InkWell(
+                              onTap: _pickAvatarFromDevice,
+                              borderRadius: BorderRadius.circular(20),
+                              child: Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF06B6D4),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 15),
+                              ),
+                            ),
                         ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text('Or select an instant avatar preset:', style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  children: _avatarPresets.map((preset) {
-                    final isCurrent = _avatarUrlController.text == preset;
-                    return GestureDetector(
-                      onTap: () {
-                        _avatarUrlController.text = preset;
-                        setState(() {});
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isCurrent ? const Color(0xFF06B6D4) : Colors.transparent,
-                            width: 2.5,
+                      );
+
+                      final detailsWidget = Column(
+                        crossAxisAlignment: isNarrow ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(
+                                'Profile Avatar',
+                                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF06B6D4).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'JPG • PNG • WEBP',
+                                  style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        child: CircleAvatar(
-                          radius: 18,
-                          backgroundImage: NetworkImage(preset),
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                          const SizedBox(height: 6),
+                          Text(
+                            _pickedAvatarFilename != null
+                                ? 'Selected: $_pickedAvatarFilename'
+                                : (_avatarUrlController.text.isNotEmpty
+                                    ? 'Custom avatar active'
+                                    : 'No custom avatar. Displaying initials.'),
+                            style: TextStyle(
+                              color: _avatarUrlController.text.isNotEmpty || _pickedAvatarBytes != null
+                                  ? const Color(0xFF10B981)
+                                  : Colors.white54,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Upload a photo from your computer or phone to personalize your chat presence',
+                            style: TextStyle(color: Colors.white38, fontSize: 11),
+                          ),
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 8,
+                            alignment: isNarrow ? WrapAlignment.center : WrapAlignment.start,
+                            children: [
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF06B6D4),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                icon: const Icon(Icons.file_upload_outlined, size: 17),
+                                label: Text(
+                                  _avatarUrlController.text.isNotEmpty || _pickedAvatarBytes != null
+                                      ? 'Change Avatar'
+                                      : 'Upload from Device',
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                ),
+                                onPressed: _isUploadingAvatar ? null : _pickAvatarFromDevice,
+                              ),
+                              if (_avatarUrlController.text.isNotEmpty || _pickedAvatarBytes != null)
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFFEF4444),
+                                    side: const BorderSide(color: Color(0xFFEF4444)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  icon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFEF4444)),
+                                  label: const Text('Remove', style: TextStyle(fontSize: 13, color: Color(0xFFEF4444))),
+                                  onPressed: _isUploadingAvatar ? null : _removeAvatar,
+                                ),
+                            ],
+                          ),
+                        ],
+                      );
+
+                      if (isNarrow) {
+                        return Column(
+                          children: [
+                            avatarWidget,
+                            const SizedBox(height: 16),
+                            detailsWidget,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          avatarWidget,
+                          const SizedBox(width: 22),
+                          Expanded(child: detailsWidget),
+                        ],
+                      );
+                    },
+                  ),
                 ),
 
                 const Divider(height: 36, color: Colors.white12),
@@ -492,6 +1135,120 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                     prefixIcon: Icon(Icons.info_outline, color: Colors.white70),
                   ),
                 ),
+                const SizedBox(height: 20),
+
+                // 6. Account Privacy Setting (Public vs Private Mode)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            _isPrivate ? Icons.lock : Icons.public,
+                            color: _isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Account Privacy Mode',
+                            style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: (_isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981)).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: (_isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981)).withOpacity(0.4),
+                              ),
+                            ),
+                            child: Text(
+                              _isPrivate ? 'PRIVATE' : 'PUBLIC',
+                              style: TextStyle(
+                                color: _isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _isPrivate
+                            ? 'Private Account: Other users must complete a confirmation prompt ("Do you know this person?") before messaging you.'
+                            : 'Public Account: Any user can search for your username and start chatting directly without requiring prior confirmation.',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => setState(() => _isPrivate = false),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: !_isPrivate ? const Color(0xFF10B981).withOpacity(0.15) : Colors.black12,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: !_isPrivate ? const Color(0xFF10B981) : Colors.white10,
+                                    width: !_isPrivate ? 2 : 1,
+                                  ),
+                                ),
+                                child: const Column(
+                                  children: [
+                                    Icon(Icons.public, color: Color(0xFF10B981), size: 22),
+                                    SizedBox(height: 6),
+                                    Text('Public Account', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    SizedBox(height: 2),
+                                    Text('Open Messaging', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => setState(() => _isPrivate = true),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: _isPrivate ? const Color(0xFFFBBF24).withOpacity(0.15) : Colors.black12,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: _isPrivate ? const Color(0xFFFBBF24) : Colors.white10,
+                                    width: _isPrivate ? 2 : 1,
+                                  ),
+                                ),
+                                child: const Column(
+                                  children: [
+                                    Icon(Icons.lock, color: Color(0xFFFBBF24), size: 22),
+                                    SizedBox(height: 6),
+                                    Text('Private Account', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    SizedBox(height: 2),
+                                    Text('Confirm First', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 24),
 
                 // Save All Profile Settings Button
@@ -531,7 +1288,25 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     final isSelected = widget.currentThemeMode == mode;
 
     return InkWell(
-      onTap: () => widget.onThemeChanged(mode),
+      onTap: () async {
+        widget.onThemeChanged(mode);
+        await ApiService.setThemeMode(mode);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              duration: const Duration(milliseconds: 1500),
+              backgroundColor: primary,
+              content: Row(
+                children: [
+                  const Icon(Icons.cloud_done, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text('$title theme active & stored in cloud!'),
+                ],
+              ),
+            ),
+          );
+        }
+      },
       child: Container(
         width: 140,
         padding: const EdgeInsets.all(12),

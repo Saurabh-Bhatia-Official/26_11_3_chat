@@ -87,6 +87,17 @@ public class Message {
     public Boolean getIsDeleted() { return isDeleted; }
     public void setIsDeleted(Boolean deleted) { isDeleted = deleted; }
 
+    @Column(columnDefinition = "TEXT")
+    private String deletedForUserIds = "";
+
+    private Instant editedAt;
+
+    public String getDeletedForUserIds() { return deletedForUserIds != null ? deletedForUserIds : ""; }
+    public void setDeletedForUserIds(String deletedForUserIds) { this.deletedForUserIds = deletedForUserIds; }
+
+    public Instant getEditedAt() { return editedAt; }
+    public void setEditedAt(Instant editedAt) { this.editedAt = editedAt; }
+
     public Boolean getSafetyFlagged() { return safetyFlagged; }
     public void setSafetyFlagged(Boolean safetyFlagged) { this.safetyFlagged = safetyFlagged; }
 

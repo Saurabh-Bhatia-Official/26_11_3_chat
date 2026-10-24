@@ -1,9 +1,34 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../constants/game_assets.dart';
 
 class LudoGameView extends StatefulWidget {
   final VoidCallback onClose;
-  const LudoGameView({super.key, required this.onClose});
+  final VoidCallback? onMinimize;
+  final VoidCallback? onChangeGame;
+  final VoidCallback? onStopGame;
+  final Map<String, dynamic>? initialGameState;
+  final void Function(Map<String, dynamic> newState)? onGameStateChanged;
+  final String myPlayer; // 'RED' or 'GREEN'
+  final String opponentName;
+  final String myUsername;
+  final String player1Username;
+  final String player2Username;
+
+  const LudoGameView({
+    super.key,
+    required this.onClose,
+    this.onMinimize,
+    this.onChangeGame,
+    this.onStopGame,
+    this.initialGameState,
+    this.onGameStateChanged,
+    this.myPlayer = 'RED',
+    this.opponentName = 'Opponent',
+    this.myUsername = '',
+    this.player1Username = '',
+    this.player2Username = '',
+  });
 
   @override
   State<LudoGameView> createState() => _LudoGameViewState();
@@ -14,39 +39,119 @@ class _LudoGameViewState extends State<LudoGameView> {
   int greenScore = 0;
   int currentDice = 6;
   String currentTurn = 'RED'; // RED or GREEN
+  String currentTurnUsername = '';
   bool isRolling = false;
   String? winner;
 
-  void _rollDice() async {
-    if (winner != null || isRolling) return;
-    setState(() => isRolling = true);
-    await Future.delayed(const Duration(milliseconds: 350));
+  @override
+  void initState() {
+    super.initState();
+    currentTurnUsername = widget.player1Username.isNotEmpty ? widget.player1Username : widget.myUsername;
+    if (widget.initialGameState != null) {
+      _applyExternalState(widget.initialGameState!);
+    }
+  }
 
-    final roll = Random().nextInt(6) + 1;
+  @override
+  void didUpdateWidget(covariant LudoGameView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialGameState != null && widget.initialGameState != oldWidget.initialGameState) {
+      _applyExternalState(widget.initialGameState!);
+    }
+  }
+
+  void _applyExternalState(Map<String, dynamic> state) {
     setState(() {
-      isRolling = false;
-      currentDice = roll;
-
-      if (currentTurn == 'RED') {
-        redScore = min(56, redScore + roll);
-        if (redScore >= 56) winner = 'RED (Player 1)';
-        currentTurn = 'GREEN';
-      } else {
-        greenScore = min(56, greenScore + roll);
-        if (greenScore >= 56) winner = 'GREEN (Player 2)';
-        currentTurn = 'RED';
-      }
+      redScore = state['redScore'] ?? redScore;
+      greenScore = state['greenScore'] ?? greenScore;
+      currentDice = state['currentDice'] ?? currentDice;
+      currentTurn = state['currentTurn'] ?? currentTurn;
+      winner = state['winner'];
+      currentTurnUsername = state['currentTurnUsername'] ??
+          (currentTurn == 'RED' ? widget.player1Username : widget.player2Username);
     });
   }
 
-  void _resetGame() {
+  bool get isMyTurn {
+    if (currentTurnUsername.isNotEmpty && widget.myUsername.isNotEmpty) {
+      return currentTurnUsername.toLowerCase() == widget.myUsername.toLowerCase();
+    }
+    return currentTurn == widget.myPlayer;
+  }
+
+  void _rollDice() async {
+    if (winner != null || isRolling || !isMyTurn) return;
+    setState(() => isRolling = true);
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    final roll = Random().nextInt(6) + 1;
+    String nextTurn = currentTurn;
+    String? newWinner = winner;
+    int newRed = redScore;
+    int newGreen = greenScore;
+
+    if (currentTurn == 'RED') {
+      newRed = min(56, redScore + roll);
+      if (newRed >= 56) newWinner = widget.player1Username.isNotEmpty ? widget.player1Username : 'RED';
+      nextTurn = 'GREEN';
+    } else {
+      newGreen = min(56, greenScore + roll);
+      if (newGreen >= 56) newWinner = widget.player2Username.isNotEmpty ? widget.player2Username : 'GREEN';
+      nextTurn = 'RED';
+    }
+
+    final nextTurnUsername = (nextTurn == 'RED')
+        ? (widget.player1Username.isNotEmpty ? widget.player1Username : widget.myUsername)
+        : (widget.player2Username.isNotEmpty ? widget.player2Username : widget.opponentName);
+
+    setState(() {
+      isRolling = false;
+      currentDice = roll;
+      redScore = newRed;
+      greenScore = newGreen;
+      winner = newWinner;
+      currentTurn = nextTurn;
+      currentTurnUsername = nextTurnUsername;
+    });
+
+    widget.onGameStateChanged?.call({
+      'game': 'LUDO',
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      'redScore': newRed,
+      'greenScore': newGreen,
+      'currentDice': roll,
+      'currentTurn': nextTurn,
+      'player1Username': widget.player1Username,
+      'player2Username': widget.player2Username,
+      'currentTurnUsername': nextTurnUsername,
+      'winner': newWinner,
+      'lastAction': '@${widget.myUsername} rolled a $roll',
+    });
+  }
+
+  void _resetGame({bool notify = true}) {
     setState(() {
       redScore = 0;
       greenScore = 0;
       currentDice = 6;
       currentTurn = 'RED';
+      currentTurnUsername = widget.player1Username.isNotEmpty ? widget.player1Username : widget.myUsername;
       winner = null;
     });
+
+    if (notify) {
+      widget.onGameStateChanged?.call({
+        'redScore': 0,
+        'greenScore': 0,
+        'currentDice': 6,
+        'currentTurn': 'RED',
+        'currentTurnUsername': currentTurnUsername,
+        'player1Username': widget.player1Username,
+        'player2Username': widget.player2Username,
+        'winner': null,
+        'lastAction': 'Ludo game reset',
+      });
+    }
   }
 
   @override
@@ -54,80 +159,166 @@ class _LudoGameViewState extends State<LudoGameView> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withOpacity(0.12),
+            blurRadius: 16,
+            spreadRadius: 2,
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       child: Column(
         children: [
+          // Header Bar
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.casino, color: Color(0xFF10B981)),
-                  SizedBox(width: 8),
-                  Text(
-                    'PlayTogether Ludo 🎲',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  const Icon(Icons.casino, color: Color(0xFF10B981), size: 20),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Ludo 🎲',
+                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isMyTurn ? const Color(0xFF10B981).withOpacity(0.2) : Colors.white12,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isMyTurn ? const Color(0xFF10B981) : Colors.white24,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      isMyTurn ? "Your turn (@${widget.myUsername})" : "Turn: @$currentTurnUsername ($currentTurn)",
+                      style: TextStyle(
+                        color: isMyTurn ? const Color(0xFF10B981) : Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
               Row(
                 children: [
+                  if (widget.onChangeGame != null)
+                    IconButton(
+                      icon: const Icon(Icons.swap_horiz, color: Color(0xFF06B6D4), size: 20),
+                      onPressed: widget.onChangeGame,
+                      tooltip: 'Change Game',
+                    ),
+                  if (widget.onStopGame != null)
+                    IconButton(
+                      icon: const Icon(Icons.stop_circle_outlined, color: Color(0xFFEF4444), size: 20),
+                      onPressed: widget.onStopGame,
+                      tooltip: 'Stop Game',
+                    ),
                   IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white70, size: 20),
-                    onPressed: _resetGame,
+                    icon: const Icon(Icons.refresh, color: Colors.white70, size: 18),
+                    onPressed: () => _resetGame(notify: true),
+                    tooltip: 'Reset Game',
                   ),
+                  if (widget.onMinimize != null)
+                    IconButton(
+                      icon: const Icon(Icons.remove, color: Colors.white70, size: 18),
+                      onPressed: widget.onMinimize,
+                      tooltip: 'Minimize Game',
+                    ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                    icon: const Icon(Icons.close, color: Colors.white70, size: 18),
                     onPressed: widget.onClose,
+                    tooltip: 'Close Game View',
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
+
+          // Control & Dice bar
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  winner != null
-                      ? '🏆 $winner Wins!'
-                      : 'Turn: $currentTurn • Last Roll: $currentDice',
-                  style: TextStyle(
-                    color: winner != null ? const Color(0xFFFBBF24) : Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                // Cloud-hosted Dice Graphic Asset
+                Container(
+                  width: 26,
+                  height: 26,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black38, blurRadius: 4),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.network(
+                      GameCloudAssets.getDice(currentDice),
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Text(
+                          '$currentDice',
+                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
+                Expanded(
+                  child: Text(
+                    winner != null
+                        ? '🏆 @$winner Wins!'
+                        : 'Roll: $currentDice • ${isMyTurn ? "Your turn (@${widget.myUsername})!" : "Waiting for @$currentTurnUsername..."}',
+                    style: TextStyle(
+                      color: winner != null ? const Color(0xFFFBBF24) : Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: currentTurn == 'RED' ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                    backgroundColor: isMyTurn
+                        ? (currentTurn == 'RED' ? const Color(0xFFEF4444) : const Color(0xFF10B981))
+                        : Colors.white12,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   ),
                   icon: isRolling
                       ? const SizedBox(
-                          width: 14,
-                          height: 14,
+                          width: 12,
+                          height: 12,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.casino, size: 16),
-                  label: Text('Roll $currentTurn'),
-                  onPressed: winner == null && !isRolling ? _rollDice : null,
+                      : const Icon(Icons.casino, size: 14),
+                  label: Text(
+                    isMyTurn ? 'Roll Dice' : 'Wait (@$currentTurnUsername)',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  onPressed: winner == null && !isRolling && isMyTurn ? _rollDice : null,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          // Ludo board stylized quadrants
+          const SizedBox(height: 8),
+
+          // Board quadrants
           Expanded(
             child: Center(
               child: AspectRatio(
@@ -135,8 +326,8 @@ class _LudoGameViewState extends State<LudoGameView> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF475569), width: 3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF475569), width: 2),
                   ),
                   child: Column(
                     children: [
@@ -155,9 +346,13 @@ class _LudoGameViewState extends State<LudoGameView> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Text('🔴 RED', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 4),
-                                      Text('Progress: $redScore/56', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                      Text(
+                                        '🔴 RED ${widget.player1Username.isNotEmpty ? "(@${widget.player1Username})" : ""}',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text('Progress: $redScore/56', style: const TextStyle(color: Colors.white70, fontSize: 10)),
                                     ],
                                   ),
                                 ),
@@ -175,9 +370,13 @@ class _LudoGameViewState extends State<LudoGameView> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Text('🟢 GREEN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 4),
-                                      Text('Progress: $greenScore/56', style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                      Text(
+                                        '🟢 GREEN ${widget.player2Username.isNotEmpty ? "(@${widget.player2Username})" : ""}',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text('Progress: $greenScore/56', style: const TextStyle(color: Colors.white70, fontSize: 10)),
                                     ],
                                   ),
                                 ),
@@ -188,7 +387,7 @@ class _LudoGameViewState extends State<LudoGameView> {
                       ),
                       // Center Cross Track
                       Container(
-                        height: 50,
+                        height: 40,
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFF0F172A),
@@ -197,9 +396,9 @@ class _LudoGameViewState extends State<LudoGameView> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            Text('Red track: $redScore', style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12)),
-                            const Icon(Icons.stars, color: Color(0xFFFBBF24)),
-                            Text('Green track: $greenScore', style: const TextStyle(color: Color(0xFF10B981), fontSize: 12)),
+                            Text('Red: $redScore', style: const TextStyle(color: Color(0xFFEF4444), fontSize: 11, fontWeight: FontWeight.bold)),
+                            const Icon(Icons.stars, color: Color(0xFFFBBF24), size: 16),
+                            Text('Green: $greenScore', style: const TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -215,7 +414,7 @@ class _LudoGameViewState extends State<LudoGameView> {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Center(
-                                  child: Text('🟡 YELLOW', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  child: Text('🟡 YELLOW', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
                                 ),
                               ),
                             ),
@@ -228,7 +427,7 @@ class _LudoGameViewState extends State<LudoGameView> {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Center(
-                                  child: Text('🔵 BLUE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  child: Text('🔵 BLUE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
                                 ),
                               ),
                             ),

@@ -1,6 +1,6 @@
 # Next-Gen Cross-Platform Chat Application
 
-A high-performance communication platform implementing the full Product Requirements Document (PRD), built with **Flutter**, **Spring Boot**, **Supabase (PostgreSQL)**, **Cloudinary**, and configured for instantaneous deployment on **Vercel**.
+A high-performance communication platform implementing the full Product Requirements Document (PRD), built with **Flutter**, **Spring Boot**, **Neon (PostgreSQL)**, **Cloudinary**, and configured for instantaneous deployment on **Vercel**.
 
 ---
 
@@ -44,12 +44,10 @@ A high-performance communication platform implementing the full Product Requirem
 
 ```
 ├── .env.example              # Environment variables template
-├── docker-compose.yml        # Docker orchestrator for Spring Boot & PostgreSQL
 ├── vercel.json               # Root Vercel deployment configuration
 ├── prd.md                    # Original Product Requirements Document
 ├── backend/                  # Spring Boot 3.3 (Java 21/25) Backend
 │   ├── pom.xml
-│   ├── Dockerfile
 │   └── src/main/java/com/chatgen/backend/
 │       ├── config/           # WebSocket (STOMP), Cloudinary, Security & CORS
 │       ├── controller/       # Auth, Chat, MediaUpload, Safety, Games, Admin
@@ -69,7 +67,7 @@ A high-performance communication platform implementing the full Product Requirem
 │   │   │   └── games/        # Chess, Ludo, Snakes & Ladders
 │   │   └── widgets/          # GlassContainer, AvatarBadge, MessageBubble, CallModal
 │   └── test/                 # Test suite (all passing)
-└── supabase/
+└── database/
     └── schema.sql            # Full PostgreSQL DDL, RLS policies, indexes, and seed data
 ```
 
@@ -77,31 +75,43 @@ A high-performance communication platform implementing the full Product Requirem
 
 ## 🚀 Running Locally
 
-### 1. Spring Boot Backend
-```bash
-cd backend
-mvn clean spring-boot:run
+### ⚡ One-Click Run (All Services):
+Double-click or run:
+```cmd
+run.bat
 ```
-The backend starts on `http://localhost:8080` with REST APIs, WebSocket STOMP at `/ws`, and in-memory H2 database (or Supabase PostgreSQL if configured).
+*(Or in PowerShell: `.\run.ps1`)*
 
-### 2. Flutter Client
+### 1. Spring Boot Backend (Port 8085)
+- **Windows CMD**:
+  ```cmd
+  cd backend && mvnw.cmd spring-boot:run
+  ```
+- **PowerShell**:
+  ```powershell
+  cd backend; .\mvnw spring-boot:run
+  ```
+- **macOS / Linux**:
+  ```bash
+  cd backend && ./mvnw spring-boot:run
+  ```
+
+### 2. Flutter Client (Chrome)
 ```bash
-cd frontend
-flutter run -d chrome
+cd frontend && flutter run -d chrome --dart-define-from-file=.env
 ```
 
 ---
 
-## ☁️ Supabase Setup
-1. Create a project in [Supabase](https://supabase.com).
-2. Navigate to the **SQL Editor**.
-3. Paste and run the contents of [`supabase/schema.sql`](file:///c:/Users/ssbha/Desktop/CI_Projects/26_11_3_chat/supabase/schema.sql).
-4. Copy your database connection string into `backend/src/main/resources/application.yml` or your `.env` file:
-   ```env
-   SUPABASE_DB_URL=jdbc:postgresql://db.<PROJECT_REF>.supabase.co:5432/postgres
-   SUPABASE_DB_USER=postgres
-   SUPABASE_DB_PASSWORD=<YOUR_PASSWORD>
-   ```
+## 🗄️ Neon PostgreSQL Setup
+The application is pre-configured to connect to your Neon serverless PostgreSQL database:
+```env
+DATABASE_URL=postgresql://neondb_owner:npg_75prOHxhoDCa@ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+NEON_DB_URL=jdbc:postgresql://ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech:5432/neondb?sslmode=require
+DB_USER=neondb_owner
+DB_PASSWORD=npg_75prOHxhoDCa
+```
+Database schema definitions and indexes are maintained in [`database/schema.sql`](file:///c:/Users/ssbha/Desktop/CI_Projects/26_11_3_chat/database/schema.sql).
 
 ---
 

@@ -6,14 +6,14 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.4</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
     <groupId>com.chatgen</groupId>
     <artifactId>chat-backend</artifactId>
     <version>1.0.0</version>
     <name>chat-backend</name>
-    <description>Next-Gen Chat Backend with Spring Boot, Supabase PostgreSQL, and Cloudinary</description>
+    <description>Next-Gen Chat Backend with Spring Boot, Neon PostgreSQL, and Cloudinary</description>
 
     <properties>
         <java.version>21</java.version>
@@ -42,7 +42,7 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- PostgreSQL Driver for Supabase -->
+        <!-- PostgreSQL Driver for Neon Database -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

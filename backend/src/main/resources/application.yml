@@ -5,21 +5,27 @@ spring:
   application:
     name: chat-backend
   datasource:
-    # Connects to Supabase PostgreSQL if provided, or falls back to in-memory H2
-    url: ${SUPABASE_DB_URL:jdbc:h2:mem:chatdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL}
-    username: ${SUPABASE_DB_USER:sa}
-    password: ${SUPABASE_DB_PASSWORD:}
-    driver-class-name: ${DB_DRIVER:org.h2.Driver}
+    # Connects to Neon PostgreSQL Cloud Database
+    url: ${DATABASE_URL:${NEON_DB_URL:jdbc:postgresql://ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech:5432/neondb?sslmode=require}}
+    username: ${DB_USER:neondb_owner}
+    password: ${DB_PASSWORD:npg_75prOHxhoDCa}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: false
     properties:
       hibernate:
-        format_sql: true
+        '[format_sql]': true
         jdbc:
           lob:
-            non_contextual_creation: true
+            '[non_contextual_creation]': true
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:demo}

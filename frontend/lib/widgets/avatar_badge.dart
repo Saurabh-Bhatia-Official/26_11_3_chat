@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 
 class AvatarBadge extends StatelessWidget {
@@ -24,13 +25,28 @@ class AvatarBadge extends StatelessWidget {
         ? name.trim().split(' ').map((e) => e[0]).take(2).join().toUpperCase()
         : '?';
 
+    ImageProvider? imageProvider;
+    if (avatarUrl != null && avatarUrl!.trim().isNotEmpty) {
+      final cleanUrl = avatarUrl!.trim();
+      if (cleanUrl.startsWith('data:image')) {
+        try {
+          final commaIdx = cleanUrl.indexOf(',');
+          final base64Str = commaIdx != -1 ? cleanUrl.substring(commaIdx + 1) : cleanUrl;
+          final bytes = base64Decode(base64Str);
+          imageProvider = MemoryImage(bytes);
+        } catch (_) {}
+      } else {
+        imageProvider = NetworkImage(cleanUrl);
+      }
+    }
+
     return Stack(
       children: [
         CircleAvatar(
           radius: radius,
-          backgroundColor: Theme.of(context).primaryColor.withOpacity(0.2),
-          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl!) : null,
-          child: avatarUrl == null
+          backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+          backgroundImage: imageProvider,
+          child: imageProvider == null
               ? Text(
                   initials,
                   style: TextStyle(

@@ -2,24 +2,24 @@ package com.chatgen.backend.controller;
 
 import com.chatgen.backend.model.User;
 import com.chatgen.backend.repository.UserRepository;
+import com.chatgen.backend.service.JwtService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
     private final UserRepository userRepository;
+    private final JwtService jwtService;
 
-    public AuthController(UserRepository userRepository) {
+    public AuthController(UserRepository userRepository, JwtService jwtService) {
         this.userRepository = userRepository;
+        this.jwtService = jwtService;
     }
 
     @PostMapping("/login")
@@ -46,8 +46,12 @@ public class AuthController {
         user.setLastSeen(Instant.now());
         userRepository.save(user);
 
+        String token = jwtService.generateToken(user);
+
         Map<String, Object> response = new HashMap<>();
-        response.put("token", "jwt_token_" + user.getId());
+        response.put("token", token);
+        response.put("tokenType", "Bearer");
+        response.put("expiresInMs", 86400000L);
         response.put("user", user);
         return ResponseEntity.ok(response);
     }
@@ -77,8 +81,13 @@ public class AuthController {
         newUser.setSafetyScore(95);
 
         User saved = userRepository.save(newUser);
+
+        String token = jwtService.generateToken(saved);
+
         Map<String, Object> response = new HashMap<>();
-        response.put("token", "jwt_token_" + saved.getId());
+        response.put("token", token);
+        response.put("tokenType", "Bearer");
+        response.put("expiresInMs", 86400000L);
         response.put("user", saved);
         return ResponseEntity.ok(response);
     }
@@ -86,6 +95,51 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> payload) {
         return signup(payload);
+    }
+
+    @GetMapping({"/account", "/me"})
+    public ResponseEntity<?> getCurrentAccount(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(required = false) String token
+    ) {
+        String rawToken = token != null && !token.isBlank() ? token : jwtService.extractToken(authHeader);
+        if (rawToken == null || rawToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "No JWT authorization token provided"));
+        }
+
+        if (!jwtService.validateToken(rawToken)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid or expired JWT token"));
+        }
+
+        UUID userId = jwtService.getUserIdFromToken(rawToken);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid token subject"));
+        }
+
+        return userRepository.findById(userId).map(user -> {
+            user.setLastSeen(Instant.now());
+            userRepository.save(user);
+
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("authenticated", true);
+            resp.put("user", user);
+            resp.put("token", rawToken);
+            return ResponseEntity.ok(resp);
+        }).orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User account not found")));
+    }
+
+    @PutMapping("/account")
+    public ResponseEntity<?> updateCurrentAccount(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody Map<String, Object> updates
+    ) {
+        String token = jwtService.extractToken(authHeader);
+        if (token == null || !jwtService.validateToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        }
+        UUID userId = jwtService.getUserIdFromToken(token);
+        if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return updateProfile(userId, updates);
     }
 
     @GetMapping("/users")
@@ -112,7 +166,59 @@ public class AuthController {
             if (updates.containsKey("avatarUrl")) user.setAvatarUrl((String) updates.get("avatarUrl"));
             if (updates.containsKey("themePreference")) user.setThemePreference((String) updates.get("themePreference"));
             if (updates.containsKey("appIconPreference")) user.setAppIconPreference((String) updates.get("appIconPreference"));
+            if (updates.containsKey("softwareName")) user.setSoftwareName((String) updates.get("softwareName"));
+            if (updates.containsKey("customLogoUrl")) user.setCustomLogoUrl((String) updates.get("customLogoUrl"));
+            if (updates.containsKey("isPrivate")) {
+                Object val = updates.get("isPrivate");
+                if (val instanceof Boolean) {
+                    user.setIsPrivate((Boolean) val);
+                } else if (val != null) {
+                    user.setIsPrivate(Boolean.parseBoolean(val.toString()));
+                }
+            }
             return ResponseEntity.ok(userRepository.save(user));
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<Map<String, Object>>> searchUsers(
+            @RequestParam(required = false, defaultValue = "") String query,
+            @RequestParam(required = false) String currentUserId
+    ) {
+        if (query == null || query.trim().isBlank()) {
+            return ResponseEntity.ok(Collections.emptyList());
+        }
+
+        String cleanQuery = query.trim().toLowerCase().replace("@", "");
+        UUID callerId = null;
+        if (currentUserId != null && !currentUserId.isBlank()) {
+            try {
+                callerId = UUID.fromString(currentUserId);
+            } catch (Exception ignored) {}
+        }
+
+        final UUID excludeId = callerId;
+        List<User> all = userRepository.findAll();
+        List<Map<String, Object>> sanitizedResults = new ArrayList<>();
+
+        for (User u : all) {
+            if (excludeId != null && u.getId().equals(excludeId)) {
+                continue;
+            }
+            boolean matches = (u.getUsername() != null && u.getUsername().toLowerCase().contains(cleanQuery)) ||
+                              (u.getDisplayName() != null && u.getDisplayName().toLowerCase().contains(cleanQuery));
+            if (matches) {
+                Map<String, Object> safe = new HashMap<>();
+                safe.put("id", u.getId());
+                safe.put("username", u.getUsername());
+                safe.put("displayName", u.getDisplayName());
+                safe.put("avatarUrl", u.getAvatarUrl());
+                safe.put("statusMessage", u.getStatusMessage() != null ? u.getStatusMessage() : "Available");
+                safe.put("isPrivate", u.getIsPrivate());
+                sanitizedResults.add(safe);
+            }
+        }
+
+        return ResponseEntity.ok(sanitizedResults);
     }
 }

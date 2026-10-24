@@ -73,6 +73,24 @@ public class Conversation {
     public String getParticipant2Avatar() { return participant2Avatar; }
     public void setParticipant2Avatar(String participant2Avatar) { this.participant2Avatar = participant2Avatar; }
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(columnDefinition = "TEXT")
+    private String groupAdminIds;
+
+    @Column(columnDefinition = "TEXT")
+    private String participantIds;
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getGroupAdminIds() { return groupAdminIds != null ? groupAdminIds : ""; }
+    public void setGroupAdminIds(String groupAdminIds) { this.groupAdminIds = groupAdminIds; }
+
+    public String getParticipantIds() { return participantIds != null ? participantIds : ""; }
+    public void setParticipantIds(String participantIds) { this.participantIds = participantIds; }
+
     public String getLastMessagePreview() { return lastMessagePreview; }
     public void setLastMessagePreview(String lastMessagePreview) { this.lastMessagePreview = lastMessagePreview; }
 

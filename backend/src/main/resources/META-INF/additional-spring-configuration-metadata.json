@@ -1,0 +1,46 @@
+{
+  "groups": [
+    {
+      "name": "cloudinary",
+      "type": "com.chatgen.backend.config.CloudinaryProperties",
+      "description": "Cloudinary cloud storage configuration properties."
+    },
+    {
+      "name": "app",
+      "type": "com.chatgen.backend.config.AppProperties",
+      "description": "Application specific configuration properties."
+    }
+  ],
+  "properties": [
+    {
+      "name": "cloudinary.cloud-name",
+      "type": "java.lang.String",
+      "description": "Cloudinary account cloud name."
+    },
+    {
+      "name": "cloudinary.api-key",
+      "type": "java.lang.String",
+      "description": "Cloudinary account API key."
+    },
+    {
+      "name": "cloudinary.api-secret",
+      "type": "java.lang.String",
+      "description": "Cloudinary account API secret."
+    },
+    {
+      "name": "app.jwt.secret",
+      "type": "java.lang.String",
+      "description": "Secret key used for signing JWT tokens."
+    },
+    {
+      "name": "app.jwt.expiration-ms",
+      "type": "java.lang.Long",
+      "description": "Expiration time of JWT tokens in milliseconds."
+    },
+    {
+      "name": "app.cors.allowed-origins",
+      "type": "java.lang.String",
+      "description": "Allowed origins for Cross-Origin Resource Sharing (CORS)."
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 import '../widgets/glass_container.dart';
+import '../widgets/software_logo_widget.dart';
 
 class AuthScreen extends StatefulWidget {
   final VoidCallback onAuthenticated;
@@ -28,11 +30,28 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   bool _isLoading = false;
   String? _errorMessage;
   bool _obscurePassword = true;
+  bool _rememberMe = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadSavedCredentials();
+  }
+
+  void _loadSavedCredentials() async {
+    final creds = await ApiService.getSavedCredentials();
+    if (mounted) {
+      setState(() {
+        if (creds['username'] != null && creds['username']!.isNotEmpty) {
+          _loginUsernameController.text = creds['username']!;
+        }
+        if (creds['password'] != null && creds['password']!.isNotEmpty) {
+          _loginPasswordController.text = creds['password']!;
+        }
+        _rememberMe = creds['rememberMe'] != 'false';
+      });
+    }
   }
 
   @override
@@ -65,6 +84,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       await ApiService.login(
         username: username,
         password: password,
+        rememberMe: _rememberMe,
       );
       if (mounted) {
         widget.onAuthenticated();
@@ -136,32 +156,23 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // App Logo and Brand
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF06B6D4), Color(0xFF8B5CF6)],
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF06B6D4).withOpacity(0.4),
-                        blurRadius: 20,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(Icons.chat_bubble_outline, color: Colors.white, size: 36),
-                ),
+                // Dynamic App Logo and Software Name
+                const SoftwareLogoWidget(size: 68, iconSize: 36, borderRadius: 20),
                 const SizedBox(height: 16),
-                Text(
-                  'ChatGuard 💬',
-                  style: GoogleFonts.outfit(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
+                ValueListenableBuilder<String>(
+                  valueListenable: ApiService.softwareNameNotifier,
+                  builder: (context, softwareName, _) {
+                    return Text(
+                      softwareName,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 6),
                 const Text(
@@ -224,7 +235,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ),
 
                       SizedBox(
-                        height: 280,
+                        height: 330,
                         child: TabBarView(
                           controller: _tabController,
                           children: [
@@ -277,7 +288,34 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            SizedBox(
+              height: 24,
+              width: 24,
+              child: Checkbox(
+                value: _rememberMe,
+                activeColor: Theme.of(context).primaryColor,
+                checkColor: Colors.white,
+                side: const BorderSide(color: Colors.white54),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                onChanged: (val) {
+                  setState(() => _rememberMe = val ?? true);
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => setState(() => _rememberMe = !_rememberMe),
+              child: const Text(
+                'Remember my login on this device',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
         SizedBox(
           width: double.infinity,
           height: 48,

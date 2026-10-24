@@ -6,14 +6,16 @@ class CallModal extends StatefulWidget {
   final String title;
   final String avatarUrl;
   final bool isVideo;
-  final VoidCallback onEndCall;
+  final VoidCallback? onEndCall;
+  final void Function(int durationSeconds)? onEndCallWithDuration;
 
   const CallModal({
     super.key,
     required this.title,
     required this.avatarUrl,
     this.isVideo = true,
-    required this.onEndCall,
+    this.onEndCall,
+    this.onEndCallWithDuration,
   });
 
   @override
@@ -21,8 +23,10 @@ class CallModal extends StatefulWidget {
 }
 
 class _CallModalState extends State<CallModal> {
+  bool isConnecting = true;
   bool isMuted = false;
   bool isCameraOff = false;
+  bool isSpeakerOn = true;
   bool isScreenSharing = false;
   int callDurationSeconds = 0;
   Timer? timer;
@@ -30,9 +34,15 @@ class _CallModalState extends State<CallModal> {
   @override
   void initState() {
     super.initState();
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+    // Simulate initial signaling / ringing state then connect
+    Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) {
-        setState(() => callDurationSeconds++);
+        setState(() => isConnecting = false);
+        timer = Timer.periodic(const Duration(seconds: 1), (t) {
+          if (mounted) {
+            setState(() => callDurationSeconds++);
+          }
+        });
       }
     });
   }
@@ -41,6 +51,14 @@ class _CallModalState extends State<CallModal> {
   void dispose() {
     timer?.cancel();
     super.dispose();
+  }
+
+  void _finishCall() {
+    if (widget.onEndCallWithDuration != null) {
+      widget.onEndCallWithDuration!(callDurationSeconds);
+    } else if (widget.onEndCall != null) {
+      widget.onEndCall!();
+    }
   }
 
   String formatDuration(int seconds) {
@@ -72,10 +90,10 @@ class _CallModalState extends State<CallModal> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             CircleAvatar(
-                              radius: 60,
+                              radius: 64,
                               backgroundImage: NetworkImage(widget.avatarUrl),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 18),
                             Text(
                               widget.title,
                               style: const TextStyle(
@@ -84,24 +102,34 @@ class _CallModalState extends State<CallModal> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 10),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.black45,
+                                color: Colors.black54,
                                 borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isConnecting ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
+                                  width: 1,
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.fiber_manual_record, color: Color(0xFF10B981), size: 12),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    formatDuration(callDurationSeconds),
-                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                  Icon(
+                                    Icons.fiber_manual_record,
+                                    color: isConnecting ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
+                                    size: 12,
                                   ),
                                   const SizedBox(width: 8),
-                                  const Text('• 28ms • HD 1080p', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                                  Text(
+                                    isConnecting ? 'Ringing / Connecting...' : formatDuration(callDurationSeconds),
+                                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                  if (!isConnecting) ...[
+                                    const SizedBox(width: 8),
+                                    const Text('• 24ms • HD 1080p', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                                  ],
                                 ],
                               ),
                             ),
@@ -113,14 +141,41 @@ class _CallModalState extends State<CallModal> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          CircleAvatar(
-                            radius: 50,
-                            backgroundImage: NetworkImage(widget.avatarUrl),
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: (isConnecting ? const Color(0xFF06B6D4) : const Color(0xFF10B981)).withOpacity(0.3),
+                                  blurRadius: 24,
+                                  spreadRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 56,
+                              backgroundImage: NetworkImage(widget.avatarUrl),
+                            ),
                           ),
-                          const SizedBox(height: 16),
-                          Text(widget.title, style: const TextStyle(color: Colors.white, fontSize: 20)),
+                          const SizedBox(height: 20),
+                          Text(widget.title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
-                          Text(formatDuration(callDurationSeconds), style: const TextStyle(color: Colors.white70)),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.isVideo ? Icons.videocam : Icons.phone,
+                                size: 16,
+                                color: isConnecting ? const Color(0xFF06B6D4) : const Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isConnecting ? 'Calling • Ringing...' : formatDuration(callDurationSeconds),
+                                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -136,14 +191,14 @@ class _CallModalState extends State<CallModal> {
                 children: [
                   GlassContainer(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.lock, color: Color(0xFF10B981), size: 14),
-                        SizedBox(width: 6),
+                        const Icon(Icons.lock, color: Color(0xFF10B981), size: 14),
+                        const SizedBox(width: 6),
                         Text(
-                          'WebRTC End-to-End Encrypted',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
+                          widget.isVideo ? 'WebRTC Encrypted Video' : 'Secure Encrypted Call',
+                          style: const TextStyle(color: Colors.white, fontSize: 12),
                         ),
                       ],
                     ),
@@ -154,7 +209,7 @@ class _CallModalState extends State<CallModal> {
                       children: [
                         Icon(Icons.network_cell, color: Color(0xFF10B981), size: 18),
                         SizedBox(width: 4),
-                        Text('Excellent', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                        Text('Stable HD', style: TextStyle(color: Colors.white70, fontSize: 11)),
                       ],
                     ),
                   ),
@@ -177,23 +232,31 @@ class _CallModalState extends State<CallModal> {
                       icon: Icon(isMuted ? Icons.mic_off : Icons.mic,
                           color: isMuted ? const Color(0xFFEF4444) : Colors.white),
                       onPressed: () => setState(() => isMuted = !isMuted),
-                      tooltip: 'Mute Audio',
+                      tooltip: isMuted ? 'Unmute Mic' : 'Mute Audio',
                     ),
+                    if (widget.isVideo)
+                      IconButton(
+                        icon: Icon(isCameraOff ? Icons.videocam_off : Icons.videocam,
+                            color: isCameraOff ? const Color(0xFFEF4444) : Colors.white),
+                        onPressed: () => setState(() => isCameraOff = !isCameraOff),
+                        tooltip: isCameraOff ? 'Turn Camera On' : 'Turn Camera Off',
+                      ),
                     IconButton(
-                      icon: Icon(isCameraOff ? Icons.videocam_off : Icons.videocam,
-                          color: isCameraOff ? const Color(0xFFEF4444) : Colors.white),
-                      onPressed: () => setState(() => isCameraOff = !isCameraOff),
-                      tooltip: 'Toggle Camera',
+                      icon: Icon(isSpeakerOn ? Icons.volume_up : Icons.volume_off,
+                          color: isSpeakerOn ? Colors.white : Colors.white54),
+                      onPressed: () => setState(() => isSpeakerOn = !isSpeakerOn),
+                      tooltip: isSpeakerOn ? 'Speaker On' : 'Speaker Off',
                     ),
-                    IconButton(
-                      icon: Icon(isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
-                          color: isScreenSharing ? const Color(0xFF3B82F6) : Colors.white),
-                      onPressed: () => setState(() => isScreenSharing = !isScreenSharing),
-                      tooltip: 'Share Screen',
-                    ),
+                    if (widget.isVideo)
+                      IconButton(
+                        icon: Icon(isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
+                            color: isScreenSharing ? const Color(0xFF3B82F6) : Colors.white),
+                        onPressed: () => setState(() => isScreenSharing = !isScreenSharing),
+                        tooltip: 'Share Screen',
+                      ),
                     FloatingActionButton(
                       backgroundColor: const Color(0xFFEF4444),
-                      onPressed: widget.onEndCall,
+                      onPressed: _finishCall,
                       mini: true,
                       child: const Icon(Icons.call_end, color: Colors.white),
                     ),

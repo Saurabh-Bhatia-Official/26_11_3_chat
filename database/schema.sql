@@ -1,5 +1,5 @@
 -- ====================================================================
--- SUPABASE POSTGRESQL SCHEMA FOR NEXT-GEN CHAT APPLICATION
+-- POSTGRESQL SCHEMA FOR NEXT-GEN CHAT APPLICATION (NEON DATABASE)
 -- Supports: Messaging, Safety Guardian, Dynamic Identity, PlayTogether Games
 -- ====================================================================
 
@@ -48,6 +48,12 @@ CREATE TABLE IF NOT EXISTS conversations (
     is_group BOOLEAN DEFAULT FALSE,
     avatar_url TEXT,
     created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    participant1_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    participant1_name VARCHAR(100),
+    participant1_avatar TEXT,
+    participant2_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    participant2_name VARCHAR(100),
+    participant2_avatar TEXT,
     last_message_preview TEXT,
     last_message_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -70,6 +76,8 @@ CREATE TABLE IF NOT EXISTS messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sender_name VARCHAR(100),
+    sender_avatar_url TEXT,
     content TEXT NOT NULL,
     type VARCHAR(30) DEFAULT 'TEXT', -- TEXT, IMAGE, AUDIO, VIDEO, FILE, GAME_INVITE, SYSTEM
     media_url TEXT,
@@ -102,7 +110,7 @@ CREATE TABLE IF NOT EXISTS safety_events (
     severity VARCHAR(20) DEFAULT 'LOW', -- LOW, MEDIUM, HIGH, CRITICAL
     description TEXT NOT NULL,
     ip_address VARCHAR(45),
-    metadata JSONB DEFAULT '{}',
+    metadata_json TEXT DEFAULT '{}',
     is_acknowledged BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -117,7 +125,8 @@ CREATE TABLE IF NOT EXISTS game_rooms (
     player_black_id UUID REFERENCES users(id) ON DELETE SET NULL, -- Player 2
     turn_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     winner_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    state_json JSONB NOT NULL DEFAULT '{}',
+    state_json TEXT DEFAULT '{}',
+    move_history_json TEXT DEFAULT '[]',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
