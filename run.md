@@ -66,17 +66,14 @@ java -jar target/chat-backend-1.0.0.jar
 ```
 
 #### 6. Verify Backend is Running:
-- **Browser**: [http://localhost:8085/api/auth/users](http://localhost:8085/api/auth/users)
-- **PowerShell**:
-  ```powershell
-  Invoke-RestMethod -Uri "http://localhost:8085/api/auth/users" -Method Get
-  ```
-- **cURL / Bash**:
+- **Live Render Cloud Backend**: [https://two6-11-3-chat.onrender.com/api/system/branding](https://two6-11-3-chat.onrender.com/api/system/branding)
+- **Local Dev Server**: [http://localhost:8085/api/auth/users](http://localhost:8085/api/auth/users)
+- **cURL / Bash (Live Cloud)**:
   ```bash
-  curl http://localhost:8085/api/auth/users
+  curl https://two6-11-3-chat.onrender.com/api/system/branding
   ```
 
-> **Database Connection**: Automatically connects to your cloud **Neon PostgreSQL** database configured in `.env` and `application.yml` (falling back to H2 if offline). All tables and relationships are live.
+> **Database Connection**: Strictly connects to the cloud **Neon PostgreSQL** database configured in `application.yml` and environment variables. Local database has been completely removed.
 
 ---
 
@@ -232,15 +229,15 @@ CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://localhost:8080,ht
 ### B. Frontend (`frontend/.env` & `frontend/.env.example`)
 Configures the Flutter client endpoints and feature toggles:
 ```properties
-# Spring Boot Backend API endpoint
-API_BASE_URL=http://localhost:8085/api
+# Spring Boot Backend API endpoint (Render Cloud Host)
+API_BASE_URL=https://two6-11-3-chat.onrender.com/api
 
 # WebSocket STOMP endpoint
-WEBSOCKET_URL=http://localhost:8085/ws
+WEBSOCKET_URL=https://two6-11-3-chat.onrender.com/ws
 
 # App Settings
 APP_NAME=ChatGen Next-Gen
-APP_ENV=development
+APP_ENV=production
 ENABLE_SAFETY_GUARDIAN=true
 ENABLE_PLAY_TOGETHER=true
 ```

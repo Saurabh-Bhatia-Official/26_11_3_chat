@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
-import java.io.File;
 import java.net.URI;
 import java.sql.Connection;
 
@@ -74,38 +73,13 @@ public class DataSourceConfig {
 
         // Hikari pool tuning optimal for Neon serverless / pooler connections
         config.setMaximumPoolSize(10);
-        config.setMinimumIdle(1);
+        config.setMinimumIdle(2);
         config.setIdleTimeout(30000);
         config.setMaxLifetime(600000);
-        config.setConnectionTimeout(6000);
-        config.setInitializationFailTimeout(1);
+        config.setConnectionTimeout(15000);
 
-        try {
-            HikariDataSource ds = new HikariDataSource(config);
-            try (Connection conn = ds.getConnection()) {
-                System.out.println(">>> [DATABASE] Successfully connected to Neon Cloud PostgreSQL: " + config.getJdbcUrl());
-                return ds;
-            }
-        } catch (Exception e) {
-            System.err.println(">>> [DATABASE NOTICE] Neon Cloud DB unavailable or quota exceeded (" + e.getMessage() + ").");
-            System.err.println(">>> [DATABASE NOTICE] Seamlessly falling back to persistent local database (H2 in PostgreSQL mode)...");
-
-            try {
-                File dir = new File("./data");
-                if (!dir.exists()) {
-                    dir.mkdirs();
-                }
-            } catch (Exception ignored) {}
-
-            HikariConfig localConfig = new HikariConfig();
-            localConfig.setJdbcUrl("jdbc:h2:file:./data/chatdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
-            localConfig.setDriverClassName("org.h2.Driver");
-            localConfig.setUsername("sa");
-            localConfig.setPassword("");
-            localConfig.setMaximumPoolSize(10);
-            localConfig.setMinimumIdle(2);
-            localConfig.setIdleTimeout(30000);
-            return new HikariDataSource(localConfig);
-        }
+        HikariDataSource ds = new HikariDataSource(config);
+        System.out.println(">>> [DATABASE] Successfully connected to Cloud PostgreSQL: " + config.getJdbcUrl());
+        return ds;
     }
 }

@@ -7,10 +7,10 @@ import '../theme/app_theme.dart';
 import 'app_branding/app_branding.dart';
 
 class ApiService {
-  // Configurable backend URL (reads from frontend/.env or defaults to local Spring Boot port 8085)
+  // Configurable backend URL (reads from frontend/.env or defaults to Render backend)
   static String baseUrl = const String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8085/api',
+    defaultValue: 'https://two6-11-3-chat.onrender.com/api',
   );
 
   // Preference Storage Keys
@@ -934,7 +934,7 @@ class ApiService {
       senderId: me.id,
       senderName: 'System',
       content: '${me.displayName} created the group "$cleanTitle"',
-      type: 'SYSTEM',
+      type: MessageType.system,
       createdAt: DateTime.now(),
     );
     _localMessages[groupId] = [sysMsg];

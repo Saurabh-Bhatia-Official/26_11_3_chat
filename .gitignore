@@ -15,6 +15,10 @@ frontend/.env
 **/.jdk/
 backend/target/
 *.class
+backend/data/
+**/data/
+*.mv.db
+*.trace.db
 
 # Flutter (keep build/web for Vercel static deployment if desired)
 frontend/.dart_tool/
