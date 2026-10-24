@@ -5,14 +5,14 @@ spring:
   application:
     name: chat-backend
   datasource:
-    # Connects to Neon PostgreSQL Cloud Database
-    url: ${DATABASE_URL:${NEON_DB_URL:jdbc:postgresql://ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech:5432/neondb?sslmode=require}}
-    username: ${DB_USER:neondb_owner}
-    password: ${DB_PASSWORD:npg_75prOHxhoDCa}
+    # Connects to Supabase Cloud PostgreSQL Database
+    url: ${DATABASE_URL:${SUPABASE_DB_URL:${NEON_DB_URL:jdbc:postgresql://${DB_HOST:db.vtxwvilrvtiklqmnbenh.supabase.co}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=require}}}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:}
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      maximum-pool-size: 15
+      minimum-idle: 3
       idle-timeout: 300000
       connection-timeout: 20000
       max-lifetime: 1200000

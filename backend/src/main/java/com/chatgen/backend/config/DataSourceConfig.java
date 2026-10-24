@@ -14,14 +14,23 @@ import java.sql.Connection;
 @Configuration
 public class DataSourceConfig {
 
-    @Value("${spring.datasource.url}")
+    @Value("${spring.datasource.url:}")
     private String dbUrl;
 
-    @Value("${spring.datasource.username:}")
+    @Value("${spring.datasource.username:postgres}")
     private String dbUser;
 
     @Value("${spring.datasource.password:}")
     private String dbPassword;
+
+    @Value("${DB_HOST:db.vtxwvilrvtiklqmnbenh.supabase.co}")
+    private String dbHost;
+
+    @Value("${DB_PORT:5432}")
+    private String dbPort;
+
+    @Value("${DB_NAME:postgres}")
+    private String dbName;
 
     @Value("${spring.datasource.driver-class-name:org.postgresql.Driver}")
     private String driverClassName;
@@ -31,55 +40,64 @@ public class DataSourceConfig {
     public DataSource dataSource() {
         HikariConfig config = new HikariConfig();
 
-        if (dbUrl != null && (dbUrl.startsWith("postgres://") || (dbUrl.startsWith("postgresql://") && !dbUrl.startsWith("jdbc:")))) {
+        String finalJdbcUrl = dbUrl;
+        String finalUser = dbUser;
+        String finalPassword = dbPassword;
+
+        // If dbUrl is empty, assemble from discrete Supabase environment variables
+        if (finalJdbcUrl == null || finalJdbcUrl.isBlank()) {
+            finalJdbcUrl = "jdbc:postgresql://" + dbHost + ":" + dbPort + "/" + dbName + "?sslmode=require";
+        }
+
+        if (finalJdbcUrl.startsWith("postgres://") || (finalJdbcUrl.startsWith("postgresql://") && !finalJdbcUrl.startsWith("jdbc:"))) {
             try {
                 // Normalize scheme for URI parsing
-                String uriString = dbUrl.startsWith("postgres://") ? dbUrl.replaceFirst("postgres://", "http://") : dbUrl.replaceFirst("postgresql://", "http://");
+                String uriString = finalJdbcUrl.startsWith("postgres://")
+                        ? finalJdbcUrl.replaceFirst("postgres://", "http://")
+                        : finalJdbcUrl.replaceFirst("postgresql://", "http://");
                 URI uri = new URI(uriString);
                 String host = uri.getHost();
                 int port = uri.getPort() == -1 ? 5432 : uri.getPort();
-                String path = uri.getPath(); // e.g. /neondb
-                String query = uri.getQuery(); // e.g. sslmode=require&channel_binding=require
+                String path = uri.getPath();
+                String query = uri.getQuery();
 
-                String jdbcUrl = "jdbc:postgresql://" + host + ":" + port + path;
+                finalJdbcUrl = "jdbc:postgresql://" + host + ":" + port + path;
                 if (query != null && !query.isEmpty()) {
-                    jdbcUrl += "?" + query;
+                    finalJdbcUrl += "?" + query;
+                } else {
+                    finalJdbcUrl += "?sslmode=require";
                 }
-                config.setJdbcUrl(jdbcUrl);
 
                 if (uri.getUserInfo() != null) {
                     String[] userParts = uri.getUserInfo().split(":", 2);
-                    config.setUsername(userParts[0]);
+                    finalUser = userParts[0];
                     if (userParts.length > 1) {
-                        config.setPassword(userParts[1]);
+                        finalPassword = userParts[1];
                     }
-                } else {
-                    config.setUsername(dbUser);
-                    config.setPassword(dbPassword);
                 }
-                config.setDriverClassName("org.postgresql.Driver");
-            } catch (Exception e) {
-                config.setJdbcUrl(dbUrl);
-                config.setUsername(dbUser);
-                config.setPassword(dbPassword);
-                config.setDriverClassName(driverClassName);
-            }
-        } else {
-            config.setJdbcUrl(dbUrl);
-            config.setUsername(dbUser);
-            config.setPassword(dbPassword);
-            config.setDriverClassName(driverClassName);
+            } catch (Exception ignored) {}
         }
 
-        // Hikari pool tuning optimal for Neon serverless / pooler connections
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(2);
-        config.setIdleTimeout(30000);
-        config.setMaxLifetime(600000);
-        config.setConnectionTimeout(15000);
+        // Ensure sslmode=require for cloud PostgreSQL
+        if (!finalJdbcUrl.contains("sslmode=")) {
+            finalJdbcUrl += (finalJdbcUrl.contains("?") ? "&" : "?") + "sslmode=require";
+        }
 
-        HikariDataSource ds = new HikariDataSource(config);
-        System.out.println(">>> [DATABASE] Successfully connected to Cloud PostgreSQL: " + config.getJdbcUrl());
-        return ds;
+        config.setJdbcUrl(finalJdbcUrl);
+        config.setUsername(finalUser);
+        config.setPassword(finalPassword);
+        config.setDriverClassName(driverClassName != null && !driverClassName.isBlank() ? driverClassName : "org.postgresql.Driver");
+
+        // Hikari pool tuning optimal for Supabase PostgreSQL (Session or Pooler connections)
+        config.setMaximumPoolSize(15);
+        config.setMinimumIdle(3);
+        config.setIdleTimeout(300000);
+        config.setMaxLifetime(1200000);
+        config.setConnectionTimeout(20000);
+
+        String safeUrl = finalJdbcUrl.replaceAll(":[^/@]+@", ":***@");
+        System.out.println(">>> [DATABASE] Connecting to Supabase Cloud PostgreSQL: " + safeUrl + " (User: " + finalUser + ")");
+
+        return new HikariDataSource(config);
     }
 }

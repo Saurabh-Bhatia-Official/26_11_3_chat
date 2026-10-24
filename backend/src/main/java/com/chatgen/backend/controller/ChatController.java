@@ -5,6 +5,7 @@ import com.chatgen.backend.model.Message;
 import com.chatgen.backend.repository.ConversationRepository;
 import com.chatgen.backend.repository.MessageRepository;
 import com.chatgen.backend.repository.UserRepository;
+import com.chatgen.backend.service.CloudinaryService;
 import com.chatgen.backend.service.SafetyAnalyzerService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,7 @@ public class ChatController {
     private final UserRepository userRepository;
     private final SafetyAnalyzerService safetyAnalyzerService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final CloudinaryService cloudinaryService;
 
     private final Map<UUID, List<Message>> messageCache = new ConcurrentHashMap<>();
     private final Map<UUID, Long> messageCacheLastFetch = new ConcurrentHashMap<>();
@@ -38,12 +40,14 @@ public class ChatController {
                           MessageRepository messageRepository,
                           UserRepository userRepository,
                           SafetyAnalyzerService safetyAnalyzerService,
-                          SimpMessagingTemplate messagingTemplate) {
+                          SimpMessagingTemplate messagingTemplate,
+                          CloudinaryService cloudinaryService) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.safetyAnalyzerService = safetyAnalyzerService;
         this.messagingTemplate = messagingTemplate;
+        this.cloudinaryService = cloudinaryService;
     }
 
     private UUID parseOrGenerateUuid(String raw) {
@@ -183,7 +187,19 @@ public class ChatController {
             Conversation conv = convOpt.get();
             List<Message> msgs = messageRepository.findByConversationIdOrderByCreatedAtAsc(convId);
             if (!msgs.isEmpty()) {
+                // Synchronize file deletion with Cloudinary for all message attachments
+                for (Message m : msgs) {
+                    if (m.getMediaPublicId() != null && !m.getMediaPublicId().isBlank()) {
+                        cloudinaryService.deleteFile(m.getMediaPublicId());
+                    } else if (m.getMediaUrl() != null && !m.getMediaUrl().isBlank()) {
+                        cloudinaryService.deleteFileByUrl(m.getMediaUrl());
+                    }
+                }
                 messageRepository.deleteAll(msgs);
+            }
+            // If group/conversation avatar is hosted on Cloudinary, delete it
+            if (conv.getAvatarUrl() != null && !conv.getAvatarUrl().isBlank()) {
+                cloudinaryService.deleteFileByUrl(conv.getAvatarUrl());
             }
             messageCache.remove(convId);
             messageCacheLastFetch.remove(convId);
@@ -320,9 +336,17 @@ public class ChatController {
                         .body(Map.of("error", "You do not have permission to delete this message for everyone."));
             }
 
+            // Synchronize deletion with Cloudinary if media was attached
+            if (message.getMediaPublicId() != null && !message.getMediaPublicId().isBlank()) {
+                cloudinaryService.deleteFile(message.getMediaPublicId());
+            } else if (message.getMediaUrl() != null && !message.getMediaUrl().isBlank()) {
+                cloudinaryService.deleteFileByUrl(message.getMediaUrl());
+            }
+
             message.setIsDeleted(true);
             message.setContent("This message was deleted");
             message.setMediaUrl(null);
+            message.setMediaPublicId(null);
             message.setMediaBytes(null);
             Message saved = messageRepository.save(message);
 
@@ -616,7 +640,19 @@ public class ChatController {
             message.setType(payload.get("type").toString());
         }
         if (payload.get("mediaUrl") != null) {
-            message.setMediaUrl(payload.get("mediaUrl").toString());
+            String mUrl = payload.get("mediaUrl").toString();
+            message.setMediaUrl(mUrl);
+            if (message.getMediaPublicId() == null) {
+                message.setMediaPublicId(cloudinaryService.extractPublicIdFromUrl(mUrl));
+            }
+        }
+        if (payload.get("mediaPublicId") != null) {
+            message.setMediaPublicId(payload.get("mediaPublicId").toString());
+        }
+        if (payload.get("mediaBytes") != null) {
+            try {
+                message.setMediaBytes(Long.parseLong(payload.get("mediaBytes").toString()));
+            } catch (Exception ignored) {}
         }
 
         Message saved = processAndSaveMessage(message);
@@ -662,6 +698,11 @@ public class ChatController {
 
     private Message processAndSaveMessage(Message message) {
         message.setCreatedAt(Instant.now());
+
+        // Ensure mediaPublicId is extracted and stored if mediaUrl is a Cloudinary asset
+        if (message.getMediaPublicId() == null && message.getMediaUrl() != null) {
+            message.setMediaPublicId(cloudinaryService.extractPublicIdFromUrl(message.getMediaUrl()));
+        }
 
         if (message.getSenderAvatarUrl() == null || message.getSenderAvatarUrl().isBlank()) {
             if (message.getSenderId() != null) {

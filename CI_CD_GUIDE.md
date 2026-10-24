@@ -28,7 +28,7 @@ The CI/CD system is organized into **two independent, modular workflow files** i
    - Sets up Flutter (stable) and Node.js 20 on `ubuntu-latest`.
    - Runs Flutter unit and widget tests (`flutter test`).
    - Builds Flutter web production bundle:
-     `flutter build web --release --pwa-strategy=none --web-renderer canvaskit`
+     `flutter build web --release`
    - Archives the production bundle as a downloadable GitHub Actions artifact (`frontend-web-production`).
    - Deploys the web bundle to Vercel production using the Vercel CLI.
    - Emits a Markdown deployment summary to `$GITHUB_STEP_SUMMARY`.

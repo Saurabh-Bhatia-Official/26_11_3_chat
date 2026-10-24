@@ -131,6 +131,33 @@ CREATE TABLE IF NOT EXISTS game_rooms (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 10. CALL SESSIONS (Audio & Video WebRTC Calls)
+CREATE TABLE IF NOT EXISTS call_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    caller_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    caller_name VARCHAR(100),
+    caller_avatar_url TEXT,
+    receiver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    receiver_name VARCHAR(100),
+    call_type VARCHAR(20) DEFAULT 'AUDIO',
+    status VARCHAR(30) DEFAULT 'RINGING',
+    started_at TIMESTAMP WITH TIME ZONE,
+    ended_at TIMESTAMP WITH TIME ZONE,
+    duration_seconds INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 11. SYSTEM BRANDING & CUSTOMIZATION
+CREATE TABLE IF NOT EXISTS system_branding (
+    id VARCHAR(50) PRIMARY KEY DEFAULT 'default',
+    software_name VARCHAR(150) DEFAULT 'ChatGuard Next-Gen Chat',
+    custom_logo_url TEXT,
+    theme_preference VARCHAR(50) DEFAULT 'obsidianNeon',
+    app_icon_preference VARCHAR(50) DEFAULT 'neon_pulse',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- ====================================================================
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
 -- ====================================================================
@@ -139,4 +166,6 @@ CREATE INDEX IF NOT EXISTS idx_conv_members_user ON conversation_members(user_id
 CREATE INDEX IF NOT EXISTS idx_safety_events_user ON safety_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_game_rooms_conversation ON game_rooms(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_call_sessions_conv ON call_sessions(conversation_id, created_at DESC);
+
 

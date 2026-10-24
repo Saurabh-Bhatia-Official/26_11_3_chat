@@ -30,4 +30,27 @@ public class MediaUploadController {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
     }
+
+    @DeleteMapping
+    public ResponseEntity<?> deleteMedia(
+            @RequestParam(value = "publicId", required = false) String publicId,
+            @RequestParam(value = "url", required = false) String url,
+            @RequestParam(value = "resourceType", required = false) String resourceType
+    ) {
+        boolean deleted = false;
+        if (publicId != null && !publicId.trim().isEmpty()) {
+            deleted = resourceType != null 
+                    ? cloudinaryService.deleteFile(publicId.trim(), resourceType.trim())
+                    : cloudinaryService.deleteFile(publicId.trim());
+        } else if (url != null && !url.trim().isEmpty()) {
+            deleted = cloudinaryService.deleteFileByUrl(url.trim());
+        } else {
+            return ResponseEntity.badRequest().body(Map.of("error", "Either 'publicId' or 'url' must be provided."));
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "success", deleted,
+                "message", deleted ? "Asset successfully removed from Cloudinary." : "Asset was already removed or not found."
+        ));
+    }
 }

@@ -2,6 +2,7 @@ package com.chatgen.backend.controller;
 
 import com.chatgen.backend.model.SystemBranding;
 import com.chatgen.backend.repository.SystemBrandingRepository;
+import com.chatgen.backend.service.CloudinaryService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,9 +14,11 @@ import java.util.Map;
 public class SystemBrandingController {
 
     private final SystemBrandingRepository repository;
+    private final CloudinaryService cloudinaryService;
 
-    public SystemBrandingController(SystemBrandingRepository repository) {
+    public SystemBrandingController(SystemBrandingRepository repository, CloudinaryService cloudinaryService) {
         this.repository = repository;
+        this.cloudinaryService = cloudinaryService;
     }
 
     @GetMapping
@@ -38,7 +41,12 @@ public class SystemBrandingController {
             }
         }
         if (updates.containsKey("customLogoUrl")) {
-            branding.setCustomLogoUrl((String) updates.get("customLogoUrl"));
+            String newLogo = (String) updates.get("customLogoUrl");
+            String oldLogo = branding.getCustomLogoUrl();
+            if (oldLogo != null && !oldLogo.equals(newLogo) && oldLogo.contains("cloudinary.com")) {
+                cloudinaryService.deleteFileByUrl(oldLogo);
+            }
+            branding.setCustomLogoUrl(newLogo);
         }
         if (updates.containsKey("themePreference") && updates.get("themePreference") != null) {
             branding.setThemePreference((String) updates.get("themePreference"));

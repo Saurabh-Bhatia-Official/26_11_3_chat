@@ -71,4 +71,109 @@ public class CloudinaryService {
                     ". Please ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) are configured.", ex);
         }
     }
+
+    /**
+     * Deletes an asset from Cloudinary using its public_id.
+     * Tries "image", "video", and "raw" resource types to ensure clean deletion.
+     */
+    public boolean deleteFile(String publicId) {
+        if (publicId == null || publicId.trim().isEmpty()) {
+            return false;
+        }
+        String cleanId = publicId.trim();
+        try {
+            // Try image first (most common)
+            Map<?, ?> result = cloudinary.uploader().destroy(cleanId, ObjectUtils.asMap("invalidate", true));
+            String status = (String) result.get("result");
+            if ("ok".equalsIgnoreCase(status)) {
+                log.info("Deleted image from Cloudinary with public_id: {}", cleanId);
+                return true;
+            }
+
+            // Try video / audio
+            result = cloudinary.uploader().destroy(cleanId, ObjectUtils.asMap("resource_type", "video", "invalidate", true));
+            status = (String) result.get("result");
+            if ("ok".equalsIgnoreCase(status)) {
+                log.info("Deleted video/audio from Cloudinary with public_id: {}", cleanId);
+                return true;
+            }
+
+            // Try raw (documents, pdfs, zips)
+            result = cloudinary.uploader().destroy(cleanId, ObjectUtils.asMap("resource_type", "raw", "invalidate", true));
+            status = (String) result.get("result");
+            if ("ok".equalsIgnoreCase(status)) {
+                log.info("Deleted raw file from Cloudinary with public_id: {}", cleanId);
+                return true;
+            }
+
+            log.warn("Cloudinary asset '{}' deletion reported status: {}", cleanId, status);
+            return false;
+        } catch (Exception ex) {
+            log.error("Failed to delete asset '{}' from Cloudinary: {}", cleanId, ex.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Deletes an asset given a specific resourceType ("image", "video", "raw").
+     */
+    public boolean deleteFile(String publicId, String resourceType) {
+        if (publicId == null || publicId.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            Map<?, ?> result = cloudinary.uploader().destroy(publicId.trim(), ObjectUtils.asMap(
+                    "resource_type", resourceType != null ? resourceType : "image",
+                    "invalidate", true
+            ));
+            String status = (String) result.get("result");
+            log.info("Cloudinary delete for '{}' (type: {}) result: {}", publicId, resourceType, status);
+            return "ok".equalsIgnoreCase(status);
+        } catch (Exception ex) {
+            log.error("Failed to delete asset '{}' from Cloudinary: {}", publicId, ex.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Extracts Cloudinary publicId from a secure URL.
+     * e.g. https://res.cloudinary.com/dltpal1gr/image/upload/v1729000000/chatgen/attachments/xyz.png -> chatgen/attachments/xyz
+     */
+    public String extractPublicIdFromUrl(String url) {
+        if (url == null || !url.contains("cloudinary.com")) {
+            return null;
+        }
+        try {
+            int uploadIdx = url.indexOf("/upload/");
+            if (uploadIdx == -1) return null;
+            String path = url.substring(uploadIdx + 8);
+            // Skip version parameter like v1234567890/
+            if (path.startsWith("v") && path.indexOf('/') != -1) {
+                int slash = path.indexOf('/');
+                String ver = path.substring(1, slash);
+                if (ver.chars().allMatch(Character::isDigit)) {
+                    path = path.substring(slash + 1);
+                }
+            }
+            // Strip file extension if any
+            int dot = path.lastIndexOf('.');
+            if (dot != -1) {
+                path = path.substring(0, dot);
+            }
+            return path;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /**
+     * Deletes a Cloudinary file given its CDN URL.
+     */
+    public boolean deleteFileByUrl(String url) {
+        String publicId = extractPublicIdFromUrl(url);
+        if (publicId != null) {
+            return deleteFile(publicId);
+        }
+        return false;
+    }
 }

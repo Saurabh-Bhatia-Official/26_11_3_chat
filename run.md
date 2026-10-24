@@ -208,11 +208,14 @@ The project uses dedicated `.env` configuration files located directly inside ea
 ### A. Backend (`backend/.env` & `backend/.env.example`)
 Configures Spring Boot, Neon PostgreSQL, Cloudinary, and Security:
 ```properties
-# Neon PostgreSQL Database
-DATABASE_URL=postgresql://neondb_owner:npg_75prOHxhoDCa@ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-NEON_DB_URL=jdbc:postgresql://ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech:5432/neondb?sslmode=require
-DB_USER=neondb_owner
-DB_PASSWORD=npg_75prOHxhoDCa
+# Supabase PostgreSQL Database
+DB_HOST=db.vtxwvilrvtiklqmnbenh.supabase.co
+DB_PORT=5432
+DB_NAME=postgres
+DB_USER=postgres
+DB_PASSWORD=YOUR_SUPABASE_PASSWORD
+DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
+SUPABASE_DB_URL=jdbc:postgresql://db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
 DB_DRIVER=org.postgresql.Driver
 
 # Cloudinary Cloud Storage (Images, Voice Recordings, Videos, Documents)
@@ -228,7 +231,7 @@ CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://localhost:8080,ht
 ```
 
 > **Data Separation Architecture**:
-> - **Neon Cloud PostgreSQL**: Sole database. Stores user credentials, message records, group membership, timestamps, and the Cloudinary HTTPS URLs.
+> - **Supabase Cloud PostgreSQL**: Sole database. Stores user credentials, message records, group membership, timestamps, and Cloudinary HTTPS URLs + public IDs.
 > - **Cloudinary**: Sole media & file storage. All image, audio, video, and document binary payloads are uploaded directly to Cloudinary and served via Cloudinary's global CDN.
 
 ### B. Frontend (`frontend/.env` & `frontend/.env.example`)
@@ -249,17 +252,20 @@ ENABLE_PLAY_TOGETHER=true
 
 ---
 
-## 4. 🗄️ Database Setup (Neon Serverless PostgreSQL)
+## 4. 🗄️ Database Setup (Supabase PostgreSQL)
 
-Your Neon cloud database is active, pre-configured, and already migrated with the schema:
+Your Supabase cloud database configuration:
 ```bash
-# Neon Connection URI:
-DATABASE_URL=postgresql://neondb_owner:npg_75prOHxhoDCa@ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+# Supabase Connection URI:
+DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
 
 # Or JDBC Format:
-NEON_DB_URL=jdbc:postgresql://ep-morning-hall-a7zmmwgk-pooler.ap-southeast-2.aws.neon.tech:5432/neondb?sslmode=require
-DB_USER=neondb_owner
-DB_PASSWORD=npg_75prOHxhoDCa
+SUPABASE_DB_URL=jdbc:postgresql://db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
+```
+
+To run the automated schema migration on Supabase:
+```powershell
+.\database\migrate_to_supabase.ps1 -Password "your_supabase_password"
 ```
 
 To view or re-apply the full DDL table structure manually, refer to:

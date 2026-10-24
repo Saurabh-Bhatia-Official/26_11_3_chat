@@ -2,6 +2,7 @@ package com.chatgen.backend.controller;
 
 import com.chatgen.backend.model.User;
 import com.chatgen.backend.repository.UserRepository;
+import com.chatgen.backend.service.CloudinaryService;
 import com.chatgen.backend.service.JwtService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,10 +17,12 @@ public class AuthController {
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
+    private final CloudinaryService cloudinaryService;
 
-    public AuthController(UserRepository userRepository, JwtService jwtService) {
+    public AuthController(UserRepository userRepository, JwtService jwtService, CloudinaryService cloudinaryService) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
+        this.cloudinaryService = cloudinaryService;
     }
 
     @PostMapping("/login")
@@ -163,11 +166,25 @@ public class AuthController {
             if (updates.containsKey("phone")) user.setPhone((String) updates.get("phone"));
             if (updates.containsKey("statusMessage")) user.setStatusMessage((String) updates.get("statusMessage"));
             if (updates.containsKey("bio")) user.setBio((String) updates.get("bio"));
-            if (updates.containsKey("avatarUrl")) user.setAvatarUrl((String) updates.get("avatarUrl"));
+            if (updates.containsKey("avatarUrl")) {
+                String newAvatar = (String) updates.get("avatarUrl");
+                String oldAvatar = user.getAvatarUrl();
+                if (oldAvatar != null && !oldAvatar.equals(newAvatar) && oldAvatar.contains("cloudinary.com")) {
+                    cloudinaryService.deleteFileByUrl(oldAvatar);
+                }
+                user.setAvatarUrl(newAvatar);
+            }
             if (updates.containsKey("themePreference")) user.setThemePreference((String) updates.get("themePreference"));
             if (updates.containsKey("appIconPreference")) user.setAppIconPreference((String) updates.get("appIconPreference"));
             if (updates.containsKey("softwareName")) user.setSoftwareName((String) updates.get("softwareName"));
-            if (updates.containsKey("customLogoUrl")) user.setCustomLogoUrl((String) updates.get("customLogoUrl"));
+            if (updates.containsKey("customLogoUrl")) {
+                String newLogo = (String) updates.get("customLogoUrl");
+                String oldLogo = user.getCustomLogoUrl();
+                if (oldLogo != null && !oldLogo.equals(newLogo) && oldLogo.contains("cloudinary.com")) {
+                    cloudinaryService.deleteFileByUrl(oldLogo);
+                }
+                user.setCustomLogoUrl(newLogo);
+            }
             if (updates.containsKey("isPrivate")) {
                 Object val = updates.get("isPrivate");
                 if (val instanceof Boolean) {
