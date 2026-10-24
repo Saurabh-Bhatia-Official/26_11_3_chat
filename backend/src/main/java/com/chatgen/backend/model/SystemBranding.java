@@ -12,16 +12,16 @@ public class SystemBranding {
     private String id = "default";
 
     @Column(length = 150)
-    private String softwareName = "ChatGuard Next-Gen Chat";
+    private String softwareName = "Whisper";
 
     @Column(columnDefinition = "TEXT")
     private String customLogoUrl;
 
     @Column(length = 50)
-    private String themePreference = "obsidianNeon";
+    private String themePreference = "obsidianCyber";
 
     @Column(length = 50)
-    private String appIconPreference = "neon_pulse";
+    private String appIconPreference = "whisper";
 
     private Instant updatedAt = Instant.now();
 

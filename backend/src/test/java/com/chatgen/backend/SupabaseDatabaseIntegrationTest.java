@@ -81,7 +81,7 @@ public class SupabaseDatabaseIntegrationTest {
         User user = new User();
         user.setUsername(username);
         user.setDisplayName("Test User " + uniqueSuffix);
-        user.setEmail(username + "@chatguard.test");
+        user.setEmail(username + "@whisper.test");
         user.setPassword("SupabaseSecret123!");
         user.setAvatarUrl("https://res.cloudinary.com/dltpal1gr/image/upload/v1/test_avatar.jpg");
         user.setSafetyScore(95);

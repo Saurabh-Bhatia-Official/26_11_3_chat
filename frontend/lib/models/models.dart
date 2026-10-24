@@ -31,8 +31,8 @@ class UserModel {
     this.isVerified = false,
     this.isOnline = true,
     this.isPrivate = false,
-    this.appIconPreference = 'neon_pulse',
-    this.themePreference = 'obsidianNeon',
+    this.appIconPreference = 'cyber_pulse',
+    this.themePreference = 'obsidianCyber',
     this.softwareName,
     this.customLogoUrl,
   });
@@ -51,8 +51,8 @@ class UserModel {
       isVerified: json['isVerified'] ?? false,
       isOnline: json['isOnline'] ?? true,
       isPrivate: json['isPrivate'] ?? json['private'] ?? false,
-      appIconPreference: json['appIconPreference'] ?? 'neon_pulse',
-      themePreference: json['themePreference'] ?? 'obsidianNeon',
+      appIconPreference: json['appIconPreference'] ?? 'cyber_pulse',
+      themePreference: json['themePreference'] ?? 'obsidianCyber',
       softwareName: json['softwareName'],
       customLogoUrl: json['customLogoUrl'],
     );

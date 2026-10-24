@@ -1,13 +1,13 @@
 ; =====================================================================
-; INNO SETUP SCRIPT FOR CHATGUARD WINDOWS SETUP WIZARD
+; INNO SETUP SCRIPT FOR WHISPER WINDOWS SETUP WIZARD
 ; Creates a standard "Next > Next > Install > Finish" Windows Installer
 ; =====================================================================
 
-#define MyAppName "ChatGuard"
+#define MyAppName "Whisper"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "ChatGen Team"
+#define MyAppPublisher "Whisper Team"
 #define MyAppURL "https://two6-11-3-chat.onrender.com"
-#define MyAppExeName "frontend.exe"
+#define MyAppExeName "Whisper.exe"
 #define MyAppSourceDir "..\..\build\windows\x64\runner\Release"
 
 [Setup]
@@ -28,7 +28,7 @@ AllowNoIcons=yes
 
 ; Output settings
 OutputDir=..\..\..\artifacts\windows
-OutputBaseFilename=chatguard-windows-setup
+OutputBaseFilename=whisper-windows-setup
 SetupIconFile=..\runner\resources\app_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
@@ -55,10 +55,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startmenuicon"; Description: "Create a Start Menu shortcut"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-; Main Executable
-Source: "{#MyAppSourceDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Main Executable installed as Whisper.exe
+Source: "{#MyAppSourceDir}\frontend.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
 ; All Flutter Runtime Dependencies (flutter_windows.dll, data folder, plugins)
-Source: "{#MyAppSourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyAppSourceDir}\*"; DestDir: "{app}"; Excludes: "frontend.exe"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 ; Start Menu Shortcut
@@ -68,5 +68,5 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\{#MyAppExeName}"
 
 [Run]
-; Option to launch ChatGuard immediately after installation finishes
+; Option to launch Whisper immediately after installation finishes
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

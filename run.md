@@ -93,7 +93,7 @@ cd frontend && flutter run -d windows --dart-define-from-file=.env
 ```
 
 #### 2. Build Windows Setup Wizard Installer (.exe):
-To generate the standalone installer executable (`chatguard-windows-setup.exe`) that installs via the classic **"Next > Next > Install > Finish"** setup wizard:
+To generate the standalone installer executable (`whisper-windows-setup.exe`) that installs via the classic **"Next > Next > Install > Finish"** setup wizard:
 - **Windows Batch (double-click or CMD)**:
   ```cmd
   build-windows-installer.bat
@@ -102,7 +102,7 @@ To generate the standalone installer executable (`chatguard-windows-setup.exe`) 
   ```powershell
   .\build-windows-installer.ps1
   ```
-*Output artifact:* `artifacts/windows/chatguard-windows-setup.exe` (includes desktop icon, Start menu shortcut, and uninstaller).
+*Output artifact:* `artifacts/windows/whisper-windows-setup.exe` (includes desktop icon, Start menu shortcut, and uninstaller).
 
 ---
 
@@ -158,7 +158,7 @@ The application is completely dynamic with **credential persistence**, **voice/v
 ### 7. Dynamic Software & Home Icon Customization:
 - Navigate to **Identity Settings** (`🎨` icon in the navigation rail).
 - Under **Approved Launcher Icon Choices**, choose any icon style:
-  - **Neon Pulse** (`⚡`, Cyan)
+  - **Cyber Pulse** (`⚡`, Cyan)
   - **Cyber Shield** (`🛡️`, Emerald)
   - **Cosmic Night** (`🌙`, Violet)
   - **Solar Flare** (`🔥`, Amber)
@@ -256,7 +256,7 @@ API_BASE_URL=https://two6-11-3-chat.onrender.com/api
 WEBSOCKET_URL=https://two6-11-3-chat.onrender.com/ws
 
 # App Settings
-APP_NAME=ChatGen Next-Gen
+APP_NAME=Whisper
 APP_ENV=production
 ENABLE_SAFETY_GUARDIAN=true
 ENABLE_PLAY_TOGETHER=true

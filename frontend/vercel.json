@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "chatguard-flutter-app",
+  "name": "whisper-flutter-app",
   "outputDirectory": "build/web",
   "cleanUrls": true,
   "rewrites": [

@@ -32,6 +32,35 @@ class SoftwareLogoWidget extends StatelessWidget {
         return ValueListenableBuilder<String>(
           valueListenable: ApiService.currentAppIconNotifier,
           builder: (context, iconId, _) {
+            if (iconId == 'whisper') {
+              return Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(borderRadius),
+                  boxShadow: showShadow
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF1E88E5).withOpacity(0.35),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(borderRadius),
+                  child: Image.asset(
+                    'assets/branding/whisper_logo.png',
+                    width: size,
+                    height: size,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _buildFallbackIcon(),
+                  ),
+                ),
+              );
+            }
+
             final iconOpt = AppIconHelper.getIcon(iconId);
             final Color iconColor = iconOpt['color'] as Color;
             final IconData iconData = iconOpt['icon'] as IconData;

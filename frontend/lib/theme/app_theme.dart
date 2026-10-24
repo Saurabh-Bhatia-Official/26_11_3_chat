@@ -4,26 +4,26 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum AppThemeMode {
-  obsidianNeon,
+  obsidianCyber,
   royalSapphire,
   emeraldMint,
-  minimalLight,
+  minimalLight;
 }
 
 class AppTheme {
   static final ValueNotifier<AppThemeMode> currentThemeNotifier =
-      ValueNotifier<AppThemeMode>(AppThemeMode.obsidianNeon);
+      ValueNotifier<AppThemeMode>(AppThemeMode.obsidianCyber);
 
   static AppThemeMode get currentTheme => currentThemeNotifier.value;
 
   static AppThemeMode fromString(String? name) {
-    if (name == null || name.trim().isEmpty) return AppThemeMode.obsidianNeon;
+    if (name == null || name.trim().isEmpty) return AppThemeMode.obsidianCyber;
     final clean = name.trim().toLowerCase();
     for (var m in AppThemeMode.values) {
       if (m.name.toLowerCase() == clean) return m;
     }
-    if (clean == 'dark_neon' || clean == 'dark' || clean == 'obsidian') {
-      return AppThemeMode.obsidianNeon;
+    if (clean == 'dark_cyber' || clean == 'dark' || clean == 'obsidian') {
+      return AppThemeMode.obsidianCyber;
     }
     if (clean == 'light' || clean == 'minimal') {
       return AppThemeMode.minimalLight;
@@ -34,7 +34,7 @@ class AppTheme {
     if (clean == 'emerald' || clean == 'green' || clean == 'mint') {
       return AppThemeMode.emeraldMint;
     }
-    return AppThemeMode.obsidianNeon;
+    return AppThemeMode.obsidianCyber;
   }
 
   static void Function(AppThemeMode)? onThemeChanged;
@@ -83,11 +83,11 @@ class AppTheme {
           textPrimary: const Color(0xFF0F172A),
           textSecondary: const Color(0xFF64748B),
         );
-      case AppThemeMode.obsidianNeon:
+      case AppThemeMode.obsidianCyber:
         return _buildTheme(
           brightness: Brightness.dark,
-          primary: const Color(0xFF06B6D4), // Cyan neon
-          accent: const Color(0xFF8B5CF6),  // Purple neon
+          primary: const Color(0xFF06B6D4), // Electric Cyan
+          accent: const Color(0xFF8B5CF6),  // Electric Purple
           background: const Color(0xFF090D16),
           surface: const Color(0xFF121826),
           card: const Color(0xFF182234).withOpacity(0.8),
@@ -187,8 +187,15 @@ class AppTheme {
 class AppIconHelper {
   static const List<Map<String, dynamic>> options = [
     {
-      'id': 'neon_pulse',
-      'name': 'Neon Pulse',
+      'id': 'whisper',
+      'name': 'Whisper Blue Ribbon',
+      'icon': Icons.graphic_eq,
+      'color': Color(0xFF1E88E5),
+      'description': 'Official Whisper blue sonic wave ribbon',
+    },
+    {
+      'id': 'cyber_pulse',
+      'name': 'Cyber Pulse',
       'icon': Icons.bolt,
       'color': Color(0xFF06B6D4),
       'description': 'Electric cyan high-energy pulse',
@@ -226,6 +233,9 @@ class AppIconHelper {
 
   static String getPresetSvgFaviconDataUri(String? id) {
     switch (id) {
+      case 'whisper':
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="24" fill="#FFFFFF"/><path d="M22 35 C24 58 35 68 45 42 C48 34 52 34 55 42 C65 68 76 58 78 35" fill="none" stroke="url(#wg)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><path d="M82 28 C86 32 86 40 82 44" fill="none" stroke="#00B4D8" stroke-width="4" stroke-linecap="round"/><path d="M88 22 C94 28 94 44 88 50" fill="none" stroke="#00B4D8" stroke-width="4" stroke-linecap="round"/><defs><linearGradient id="wg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00D2FF"/><stop offset="100%" stop-color="#1E88E5"/></linearGradient></defs></svg>';
+        return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';
       case 'cyber_shield':
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10B981"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#g)"/><path d="M50 20 L75 32 V55 C75 70 50 82 50 82 C50 82 25 70 25 55 V32 Z" fill="#FFFFFF"/></svg>';
         return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';
@@ -235,7 +245,7 @@ class AppIconHelper {
       case 'solar_flare':
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F59E0B"/><stop offset="100%" stop-color="#EF4444"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#g)"/><path d="M50 20 C50 20 65 40 65 55 C65 68 55 78 50 80 C45 78 35 68 35 55 C35 40 50 20 50 20 Z" fill="#FFFFFF"/></svg>';
         return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';
-      case 'neon_pulse':
+      case 'cyber_pulse':
       default:
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#06B6D4"/><stop offset="100%" stop-color="#3B82F6"/></linearGradient></defs><rect width="100" height="100" rx="24" fill="url(#g)"/><polygon points="56,18 32,52 48,52 44,82 68,48 52,48" fill="#FFFFFF"/></svg>';
         return 'data:image/svg+xml;base64,${base64Encode(utf8.encode(svg))}';

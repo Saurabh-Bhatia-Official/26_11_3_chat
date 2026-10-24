@@ -14,7 +14,7 @@ import java.sql.Connection;
 @Configuration
 public class DataSourceConfig {
 
-    @Value("${spring.datasource.url:}")
+    @Value("${SUPABASE_DB_URL:${spring.datasource.url:}}")
     private String dbUrl;
 
     @Value("${spring.datasource.username:postgres}")
@@ -44,9 +44,15 @@ public class DataSourceConfig {
         String finalUser = dbUser;
         String finalPassword = dbPassword;
 
-        // If dbUrl is empty, assemble from discrete Supabase environment variables
-        if (finalJdbcUrl == null || finalJdbcUrl.isBlank()) {
+        // If dbUrl is empty or points to a non-Supabase host, fallback to configured Supabase Cloud PostgreSQL
+        if (finalJdbcUrl == null || finalJdbcUrl.isBlank() || (!finalJdbcUrl.contains("supabase.co") && !finalJdbcUrl.contains("localhost"))) {
+            if (finalJdbcUrl != null && !finalJdbcUrl.isBlank()) {
+                System.out.println(">>> [DATABASE SAFEGUARD] Non-Supabase URL detected: " + finalJdbcUrl.replaceAll(":[^/@]+@", ":***@"));
+                System.out.println(">>> Automatically routing to active Supabase Cloud PostgreSQL: " + dbHost);
+            }
             finalJdbcUrl = "jdbc:postgresql://" + dbHost + ":" + dbPort + "/" + dbName + "?sslmode=require";
+            finalUser = dbUser;
+            finalPassword = dbPassword;
         }
 
         if (finalJdbcUrl.startsWith("postgres://") || (finalJdbcUrl.startsWith("postgresql://") && !finalJdbcUrl.startsWith("jdbc:"))) {

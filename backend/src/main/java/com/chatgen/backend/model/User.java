@@ -39,9 +39,9 @@ public class User {
 
     private Integer safetyScore = 100;
 
-    private String themePreference = "dark_neon";
+    private String themePreference = "dark_cyber";
 
-    private String appIconPreference = "neon_pulse";
+    private String appIconPreference = "cyber_pulse";
 
     private Boolean isVerified = false;
 
@@ -88,7 +88,7 @@ public class User {
     public void setAppIconPreference(String appIconPreference) { this.appIconPreference = appIconPreference; }
 
     @Column(length = 150)
-    private String softwareName = "ChatGuard Next-Gen Chat";
+    private String softwareName = "Whisper";
 
     @Column(columnDefinition = "TEXT")
     private String customLogoUrl;

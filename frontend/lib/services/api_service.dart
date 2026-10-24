@@ -25,8 +25,8 @@ class ApiService {
   static const String _keyCustomLogo = 'custom_software_logo_data';
 
   // Default branding applied when not logged in or after logout
-  static const String defaultSoftwareName = 'ChatGuard Next-Gen Chat';
-  static const String defaultAppIcon = 'neon_pulse';
+  static const String defaultSoftwareName = 'Whisper';
+  static const String defaultAppIcon = 'whisper';
 
   // Dynamic Software Name & Logo State across entire software
   static final ValueNotifier<String> softwareNameNotifier = ValueNotifier<String>(defaultSoftwareName);
@@ -1236,7 +1236,7 @@ class ApiService {
     EmergencyContactModel(
       id: 'em_default_1',
       name: 'Security Ops Guild',
-      accountOrEmail: 'secops@chatguard.io',
+      accountOrEmail: 'secops@whisper.io',
       relationship: 'Security Team Account',
       phone: '+1 (555) 019-2834',
       notifyOnAlert: true,

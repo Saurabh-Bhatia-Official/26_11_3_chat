@@ -13,13 +13,19 @@
     <artifactId>chat-backend</artifactId>
     <version>1.0.0</version>
     <name>chat-backend</name>
-    <description>Next-Gen Chat Backend with Spring Boot, Neon PostgreSQL, and Cloudinary</description>
+    <description>Next-Gen Chat Backend with Spring Boot, Supabase PostgreSQL, and Cloudinary</description>
 
     <properties>
         <java.version>21</java.version>
     </properties>
 
     <dependencies>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Spring Boot Starters -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -42,7 +48,7 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- PostgreSQL Driver for Neon Database -->
+        <!-- PostgreSQL Driver for Supabase PostgreSQL Database -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

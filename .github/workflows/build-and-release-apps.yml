@@ -89,8 +89,8 @@ jobs:
       - name: 📁 Collect Android Artifacts
         run: |
           mkdir -p artifacts/android
-          cp frontend/build/app/outputs/flutter-apk/app-release.apk artifacts/android/chatguard-android-release.apk
-          cp frontend/build/app/outputs/bundle/release/app-release.aab artifacts/android/chatguard-android-release.aab
+          cp frontend/build/app/outputs/flutter-apk/app-release.apk artifacts/android/whisper-android-release.apk
+          cp frontend/build/app/outputs/bundle/release/app-release.aab artifacts/android/whisper-android-release.aab
 
       - name: 📤 Upload Android Artifacts
         uses: actions/upload-artifact@v4
@@ -139,8 +139,8 @@ jobs:
           mkdir -p artifacts/ios/Payload
           cp -r frontend/build/ios/iphoneos/Runner.app artifacts/ios/Payload/
           cd artifacts/ios
-          zip -r -q chatguard-ios-release.ipa Payload
-          zip -r -q chatguard-ios-bundle.zip Payload
+          zip -r -q whisper-ios-release.ipa Payload
+          zip -r -q whisper-ios-bundle.zip Payload
           rm -rf Payload
 
       - name: 📤 Upload iOS Artifacts
@@ -188,7 +188,7 @@ jobs:
           mkdir -p artifacts/macos
           cd frontend/build/macos/Build/Products/Release
           # Compress the .app bundle with symlinks preserved
-          zip -r -y -q ../../../../../../artifacts/macos/chatguard-macos-release.zip *.app
+          zip -r -y -q ../../../../../../artifacts/macos/whisper-macos-release.zip *.app
 
       - name: 📤 Upload macOS Artifacts
         uses: actions/upload-artifact@v4
@@ -240,17 +240,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path artifacts/windows
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" frontend/windows/installer/inno_setup.iss
-          if (-not (Test-Path "artifacts/windows/chatguard-windows-setup.exe")) {
+          if (-not (Test-Path "artifacts/windows/whisper-windows-setup.exe")) {
             Write-Error "Installer executable was not generated!"
             exit 1
           }
-          Write-Host "✅ Created chatguard-windows-setup.exe successfully"
+          Write-Host "✅ Created whisper-windows-setup.exe successfully"
 
       - name: 📦 Package Windows Release Bundle (Zip)
         shell: pwsh
         run: |
           $ReleaseDir = "frontend/build/windows/x64/runner/Release"
-          Compress-Archive -Path "$ReleaseDir/*" -DestinationPath "artifacts/windows/chatguard-windows-x64-release.zip" -CompressionLevel Optimal
+          Compress-Archive -Path "$ReleaseDir/*" -DestinationPath "artifacts/windows/whisper-windows-x64-release.zip" -CompressionLevel Optimal
 
       - name: 📤 Upload Windows Artifacts
         uses: actions/upload-artifact@v4
@@ -307,7 +307,7 @@ jobs:
         run: |
           mkdir -p artifacts/linux
           cd frontend/build/linux/x64/release/bundle
-          tar -czf ../../../../../../artifacts/linux/chatguard-linux-x64-release.tar.gz *
+          tar -czf ../../../../../../artifacts/linux/whisper-linux-x64-release.tar.gz *
 
       - name: 📤 Upload Linux Artifacts
         uses: actions/upload-artifact@v4
@@ -386,7 +386,7 @@ jobs:
       - name: 📝 Generate Release Notes
         run: |
           cat << 'EOF' > release_notes.md
-          # 🚀 ChatGuard Multi-Platform Release
+          # 🚀 Whisper Multi-Platform Release
 
           Automated build and release generated from branch `${{ github.ref_name }}` (Commit `${{ github.sha }}`).
 
@@ -394,14 +394,14 @@ jobs:
 
           | Platform | Target Architecture | File | Format |
           |:---|:---|:---|:---|
-          | 🤖 **Android** | Universal (ARM64 / ARMv7 / x86_64) | `chatguard-android-release.apk` | APK Installer |
-          | 🤖 **Android (Google Play)** | App Bundle | `chatguard-android-release.aab` | Google Play AAB |
-          | 🍎 **iOS** | Universal iOS Devices | `chatguard-ios-release.ipa` | iOS Package |
-          | 🍎 **iOS Bundle** | Payload Archive | `chatguard-ios-bundle.zip` | Zip Archive |
-          | 💻 **macOS** | Apple Silicon & Intel (Universal) | `chatguard-macos-release.zip` | macOS App Bundle |
-          | 🪟 **Windows (Setup Wizard)** | Windows 10/11 x64 | `chatguard-windows-setup.exe` | Next > Next GUI Installer (.exe) |
-          | 🪟 **Windows (Standalone)** | Windows 10/11 x64 | `chatguard-windows-x64-release.zip` | Standalone Portable ZIP |
-          | 🐧 **Linux** | Linux x64 Desktop | `chatguard-linux-x64-release.tar.gz` | Tarball Archive |
+          | 🤖 **Android** | Universal (ARM64 / ARMv7 / x86_64) | `whisper-android-release.apk` | APK Installer |
+          | 🤖 **Android (Google Play)** | App Bundle | `whisper-android-release.aab` | Google Play AAB |
+          | 🍎 **iOS** | Universal iOS Devices | `whisper-ios-release.ipa` | iOS Package |
+          | 🍎 **iOS Bundle** | Payload Archive | `whisper-ios-bundle.zip` | Zip Archive |
+          | 💻 **macOS** | Apple Silicon & Intel (Universal) | `whisper-macos-release.zip` | macOS App Bundle |
+          | 🪟 **Windows (Setup Wizard)** | Windows 10/11 x64 | `whisper-windows-setup.exe` | Next > Next GUI Installer (.exe) |
+          | 🪟 **Windows (Standalone)** | Windows 10/11 x64 | `whisper-windows-x64-release.zip` | Standalone Portable ZIP |
+          | 🐧 **Linux** | Linux x64 Desktop | `whisper-linux-x64-release.tar.gz` | Tarball Archive |
 
           ### 🔐 Integrity & Verification (SHA-256)
           Verify downloads using the attached `SHA256SUMS.txt`.
@@ -429,11 +429,11 @@ jobs:
           ## 📱 Multi-Platform Build & Release Matrix Summary
           | Platform | Build Status | Artifact Output |
           |---|---|---|
-          | 🤖 **Android** | Completed ✅ | `chatguard-android-release.apk`, `chatguard-android-release.aab` |
-          | 🍎 **iOS** | Completed ✅ | `chatguard-ios-release.ipa`, `chatguard-ios-bundle.zip` |
-          | 💻 **macOS** | Completed ✅ | `chatguard-macos-release.zip` |
-          | 🪟 **Windows** | Completed ✅ | `chatguard-windows-setup.exe` (Installer), `chatguard-windows-x64-release.zip` |
-          | 🐧 **Linux** | Completed ✅ | `chatguard-linux-x64-release.tar.gz` |
+          | 🤖 **Android** | Completed ✅ | `whisper-android-release.apk`, `whisper-android-release.aab` |
+          | 🍎 **iOS** | Completed ✅ | `whisper-ios-release.ipa`, `whisper-ios-bundle.zip` |
+          | 💻 **macOS** | Completed ✅ | `whisper-macos-release.zip` |
+          | 🪟 **Windows** | Completed ✅ | `whisper-windows-setup.exe` (Installer), `whisper-windows-x64-release.zip` |
+          | 🐧 **Linux** | Completed ✅ | `whisper-linux-x64-release.tar.gz` |
           | 🔐 **Checksums** | Verified ✅ | `SHA256SUMS.txt` |
           | 🏷️ **GitHub Release** | Published 🚀 | `${{ env.TAG_NAME }}` |
           EOF

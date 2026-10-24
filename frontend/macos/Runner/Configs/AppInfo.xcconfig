@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = frontend
+PRODUCT_NAME = Whisper
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.chatgen.frontend
+PRODUCT_BUNDLE_IDENTIFIER = com.chatgen.whisper
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.chatgen. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Whisper. All rights reserved.

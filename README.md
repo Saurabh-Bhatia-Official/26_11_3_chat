@@ -14,8 +14,8 @@ A high-performance communication platform implementing the full Product Requirem
 - **Transparent Security Timeline**: Activity history logging suspicious sign-ins, intercepted links, and session terminations.
 
 ### 2. 🎨 Dynamic App Identity (PRD Section 3.2 & 4.6)
-- **Theme Switcher**: Instant switching between **Obsidian Neon**, **Royal Sapphire**, **Emerald Mint**, and **Minimalist Light**.
-- **Launcher Icon Selector**: Approved collection of platform-compliant icons (**Neon Pulse**, **Stealth Slate**, **Emerald Spark**, **Royal Crest**).
+- **Theme Switcher**: Instant switching between **Obsidian Cyber**, **Royal Sapphire**, **Emerald Mint**, and **Minimalist Light**.
+- **Launcher Icon Selector**: Approved collection of platform-compliant icons (**Cyber Pulse**, **Stealth Slate**, **Emerald Spark**, **Royal Crest**).
 - **In-App Identity Customizer**: Change in-app display name, status message, and chat styling with live preview.
 
 ### 3. ♟️🎲 PlayTogether In-Chat Games (PRD Section 3.3)

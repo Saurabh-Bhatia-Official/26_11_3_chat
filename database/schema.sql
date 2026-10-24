@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
     bio TEXT,
     status_message VARCHAR(150) DEFAULT 'Available',
     safety_score INT DEFAULT 100,
-    theme_preference VARCHAR(50) DEFAULT 'dark_neon',
-    app_icon_preference VARCHAR(50) DEFAULT 'neon_pulse',
+    theme_preference VARCHAR(50) DEFAULT 'dark_cyber',
+    app_icon_preference VARCHAR(50) DEFAULT 'cyber_pulse',
     is_admin BOOLEAN DEFAULT FALSE,
     is_verified BOOLEAN DEFAULT FALSE,
     last_seen TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -151,10 +151,10 @@ CREATE TABLE IF NOT EXISTS call_sessions (
 -- 11. SYSTEM BRANDING & CUSTOMIZATION
 CREATE TABLE IF NOT EXISTS system_branding (
     id VARCHAR(50) PRIMARY KEY DEFAULT 'default',
-    software_name VARCHAR(150) DEFAULT 'ChatGuard Next-Gen Chat',
+    software_name VARCHAR(150) DEFAULT 'Whisper',
     custom_logo_url TEXT,
-    theme_preference VARCHAR(50) DEFAULT 'obsidianNeon',
-    app_icon_preference VARCHAR(50) DEFAULT 'neon_pulse',
+    theme_preference VARCHAR(50) DEFAULT 'obsidianCyber',
+    app_icon_preference VARCHAR(50) DEFAULT 'whisper',
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

@@ -637,7 +637,7 @@ class _SafetyGuardianViewState extends State<SafetyGuardianView> {
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
                     labelText: 'Account Username or Email',
-                    hintText: 'e.g. secops@chatguard.io or @secops',
+                    hintText: 'e.g. secops@whisper.io or @secops',
                     prefixIcon: Icon(Icons.alternate_email, color: Colors.white70),
                   ),
                 ),

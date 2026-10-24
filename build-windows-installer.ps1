@@ -1,12 +1,12 @@
 # =====================================================================
-# ChatGuard: Windows Setup Wizard (.exe) Builder
+# Whisper: Windows Setup Wizard (.exe) Builder
 # Builds Flutter Windows release and packages with Inno Setup
 # =====================================================================
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " 🚀 ChatGuard: Building Windows Setup Wizard Installer (.exe)" -ForegroundColor Cyan
+Write-Host " 🚀 Whisper: Building Windows Setup Wizard Installer (.exe)" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. Check Flutter
@@ -63,7 +63,7 @@ try {
 }
 
 $releaseDir = "$PSScriptRoot\frontend\build\windows\x64\runner\Release"
-if (-not (Test-Path "$releaseDir\frontend.exe")) {
+if (-not (Test-Path "$releaseDir\whisper.exe") -and -not (Test-Path "$releaseDir\frontend.exe")) {
     Write-Host "❌ Flutter Windows build output not found at: $releaseDir" -ForegroundColor Red
     exit 1
 }
@@ -79,7 +79,7 @@ if (-not (Test-Path $outputDir)) {
 
 & $isccPath $issPath
 
-$installerPath = "$outputDir\chatguard-windows-setup.exe"
+$installerPath = "$outputDir\whisper-windows-setup.exe"
 if (Test-Path $installerPath) {
     $fileSizeMB = [math]::Round((Get-Item $installerPath).Length / 1MB, 2)
     Write-Host "`n==========================================================" -ForegroundColor Green

@@ -37,7 +37,7 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
   bool _isPrivate = false;
   Uint8List? _pickedAvatarBytes;
   String? _pickedAvatarFilename;
-  String selectedIcon = 'neon_pulse';
+  String selectedIcon = 'cyber_pulse';
 
   final List<Map<String, dynamic>> icons = AppIconHelper.options;
 
@@ -458,8 +458,8 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                   runSpacing: 12,
                   children: [
                     _buildThemeCard(
-                      title: 'Obsidian Neon',
-                      mode: AppThemeMode.obsidianNeon,
+                      title: 'Obsidian Cyber',
+                      mode: AppThemeMode.obsidianCyber,
                       primary: const Color(0xFF06B6D4),
                       bg: const Color(0xFF090D16),
                     ),
@@ -772,11 +772,21 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                         ),
                         child: Column(
                           children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundColor: (item['color'] as Color).withOpacity(0.2),
-                              child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 24),
-                            ),
+                            item['id'] == 'whisper'
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Image.asset(
+                                      'assets/branding/whisper_logo.png',
+                                      width: 44,
+                                      height: 44,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: (item['color'] as Color).withOpacity(0.2),
+                                    child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 24),
+                                  ),
                             const SizedBox(height: 6),
                             Text(
                               item['name'],

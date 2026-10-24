@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.chatgen" "\0"
-            VALUE "FileDescription", "frontend" "\0"
+            VALUE "CompanyName", "Whisper Team" "\0"
+            VALUE "FileDescription", "Whisper" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "frontend" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.chatgen. All rights reserved." "\0"
-            VALUE "OriginalFilename", "frontend.exe" "\0"
-            VALUE "ProductName", "frontend" "\0"
+            VALUE "InternalName", "Whisper" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Whisper. All rights reserved." "\0"
+            VALUE "OriginalFilename", "whisper.exe" "\0"
+            VALUE "ProductName", "Whisper" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
