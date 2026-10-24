@@ -6,13 +6,13 @@ param (
     [string]$Password = $(if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { "JtZfEtX4eX0c8vtJ" }),
 
     [Parameter(Mandatory=$false)]
-    [string]$HostName = "db.vtxwvilrvtiklqmnbenh.supabase.co",
+    [string]$HostName = "aws-0-ap-northeast-1.pooler.supabase.com",
 
     [Parameter(Mandatory=$false)]
     [string]$Database = "postgres",
 
     [Parameter(Mandatory=$false)]
-    [string]$Username = "postgres",
+    [string]$Username = "postgres.vtxwvilrvtiklqmnbenh",
 
     [Parameter(Mandatory=$false)]
     [int]$Port = 5432

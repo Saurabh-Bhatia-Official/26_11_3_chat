@@ -1,0 +1,9 @@
+CompileFlags:
+  Add:
+    - -Irunner
+    - -I.
+    - -I..
+
+Diagnostics:
+  Suppress:
+    - unused-includes

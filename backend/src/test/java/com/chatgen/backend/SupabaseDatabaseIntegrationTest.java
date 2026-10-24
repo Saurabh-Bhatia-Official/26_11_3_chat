@@ -27,8 +27,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:postgresql://db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require",
-    "spring.datasource.username=postgres",
+    "spring.datasource.url=jdbc:postgresql://aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require",
+    "spring.datasource.username=postgres.vtxwvilrvtiklqmnbenh",
     "spring.datasource.password=JtZfEtX4eX0c8vtJ",
     "spring.jpa.hibernate.ddl-auto=update"
 })

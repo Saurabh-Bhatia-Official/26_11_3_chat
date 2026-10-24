@@ -17,13 +17,13 @@ public class DataSourceConfig {
     @Value("${SUPABASE_DB_URL:${spring.datasource.url:}}")
     private String dbUrl;
 
-    @Value("${spring.datasource.username:postgres}")
+    @Value("${spring.datasource.username:postgres.vtxwvilrvtiklqmnbenh}")
     private String dbUser;
 
     @Value("${spring.datasource.password:JtZfEtX4eX0c8vtJ}")
     private String dbPassword;
 
-    @Value("${DB_HOST:db.vtxwvilrvtiklqmnbenh.supabase.co}")
+    @Value("${DB_HOST:aws-0-ap-northeast-1.pooler.supabase.com}")
     private String dbHost;
 
     @Value("${DB_PORT:5432}")
@@ -44,8 +44,18 @@ public class DataSourceConfig {
         String finalUser = dbUser;
         String finalPassword = dbPassword;
 
+        // Auto-translate IPv6-only direct host to IPv4-compatible connection pooler
+        // (Critical for Render, Vercel, and other cloud providers without outbound IPv6)
+        if (finalJdbcUrl != null && finalJdbcUrl.contains("db.vtxwvilrvtiklqmnbenh.supabase.co")) {
+            System.out.println(">>> [SUPABASE IPV4 ADAPTER] Translating IPv6-only host to IPv4-compatible pooler: aws-0-ap-northeast-1.pooler.supabase.com");
+            finalJdbcUrl = finalJdbcUrl.replace("db.vtxwvilrvtiklqmnbenh.supabase.co", "aws-0-ap-northeast-1.pooler.supabase.com");
+            if (finalUser == null || finalUser.equals("postgres")) {
+                finalUser = "postgres.vtxwvilrvtiklqmnbenh";
+            }
+        }
+
         // If dbUrl is empty or points to a non-Supabase host, fallback to configured Supabase Cloud PostgreSQL
-        if (finalJdbcUrl == null || finalJdbcUrl.isBlank() || (!finalJdbcUrl.contains("supabase.co") && !finalJdbcUrl.contains("localhost"))) {
+        if (finalJdbcUrl == null || finalJdbcUrl.isBlank() || (!finalJdbcUrl.contains("supabase.co") && !finalJdbcUrl.contains("supabase.com") && !finalJdbcUrl.contains("localhost"))) {
             if (finalJdbcUrl != null && !finalJdbcUrl.isBlank()) {
                 System.out.println(">>> [DATABASE SAFEGUARD] Non-Supabase URL detected: " + finalJdbcUrl.replaceAll(":[^/@]+@", ":***@"));
                 System.out.println(">>> Automatically routing to active Supabase Cloud PostgreSQL: " + dbHost);

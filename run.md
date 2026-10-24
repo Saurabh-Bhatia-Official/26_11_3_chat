@@ -220,14 +220,14 @@ The project uses dedicated `.env` configuration files located directly inside ea
 ### A. Backend (`backend/.env` & `backend/.env.example`)
 Configures Spring Boot, Supabase PostgreSQL, Cloudinary, and Security:
 ```properties
-# Supabase PostgreSQL Database
-DB_HOST=db.vtxwvilrvtiklqmnbenh.supabase.co
+# Supabase PostgreSQL Database (Session Mode Pooler: IPv4 & IPv6 Compatible)
+DB_HOST=aws-0-ap-northeast-1.pooler.supabase.com
 DB_PORT=5432
 DB_NAME=postgres
-DB_USER=postgres
+DB_USER=postgres.vtxwvilrvtiklqmnbenh
 DB_PASSWORD=YOUR_SUPABASE_PASSWORD
-DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
-SUPABASE_DB_URL=jdbc:postgresql://db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres.vtxwvilrvtiklqmnbenh:${DB_PASSWORD}@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+SUPABASE_DB_URL=jdbc:postgresql://aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
 DB_DRIVER=org.postgresql.Driver
 
 # Cloudinary Cloud Storage (Images, Voice Recordings, Videos, Documents)
@@ -243,7 +243,7 @@ CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://localhost:8080,ht
 ```
 
 > **Data Separation Architecture**:
-> - **Supabase Cloud PostgreSQL**: Sole database. Stores user credentials, message records, group membership, timestamps, and Cloudinary HTTPS URLs + public IDs.
+> - **Supabase Cloud PostgreSQL**: Sole database. Stores user credentials, message records, group membership, timestamps, and Cloudinary HTTPS URLs + public IDs. Uses the Supabase connection pooler (`aws-0-ap-northeast-1.pooler.supabase.com:5432`) which resolves on IPv4 and IPv6, ensuring 100% compatibility with IPv4-only cloud hosts such as Render.
 > - **Cloudinary**: Sole media & file storage. All image, audio, video, and document binary payloads are uploaded directly to Cloudinary and served via Cloudinary's global CDN.
 
 ### B. Frontend (`frontend/.env` & `frontend/.env.example`)
@@ -268,12 +268,16 @@ ENABLE_PLAY_TOGETHER=true
 
 Your Supabase cloud database configuration:
 ```bash
-# Supabase Connection URI:
-DATABASE_URL=postgresql://postgres:${DB_PASSWORD}@db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
+# Supabase Connection URI (Session Mode Pooler - IPv4 & IPv6 Compatible):
+DATABASE_URL=postgresql://postgres.vtxwvilrvtiklqmnbenh:${DB_PASSWORD}@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
 
 # Or JDBC Format:
-SUPABASE_DB_URL=jdbc:postgresql://db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
+SUPABASE_DB_URL=jdbc:postgresql://aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
 ```
+
+> **Note on Render & Cloud Deployments**:
+> Supabase direct database host (`db.<project-id>.supabase.co`) only provides an IPv6 address. Cloud hosts like Render do not support outbound IPv6 traffic, causing `Failed to initialize pool: The connection attempt failed`.
+> Connecting via Supabase's Session Pooler (`aws-0-ap-northeast-1.pooler.supabase.com` on port `5432` with username `postgres.<project-id>`) provides native IPv4 support and connects seamlessly from Render.
 
 To run the automated schema migration on Supabase:
 ```powershell

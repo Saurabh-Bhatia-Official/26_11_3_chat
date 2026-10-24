@@ -5,9 +5,9 @@ spring:
   application:
     name: chat-backend
   datasource:
-    # Connects to Supabase Cloud PostgreSQL Database
-    url: ${SUPABASE_DB_URL:${DATABASE_URL:jdbc:postgresql://${DB_HOST:db.vtxwvilrvtiklqmnbenh.supabase.co}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=require}}
-    username: ${DB_USER:postgres}
+    # Connects to Supabase Cloud PostgreSQL Database (Session Mode Pooler: IPv4 & IPv6 compatible)
+    url: ${SUPABASE_DB_URL:${DATABASE_URL:jdbc:postgresql://${DB_HOST:aws-0-ap-northeast-1.pooler.supabase.com}:${DB_PORT:5432}/${DB_NAME:postgres}?sslmode=require}}
+    username: ${DB_USER:postgres.vtxwvilrvtiklqmnbenh}
     password: ${DB_PASSWORD:JtZfEtX4eX0c8vtJ}
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     hikari:

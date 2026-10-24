@@ -1,8 +1,43 @@
 #include "my_application.h"
 
+#if defined(__linux__) || (defined(__has_include) && __has_include(<flutter_linux/flutter_linux.h>))
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
+#endif
+#else
+// Non-Linux host fallbacks for IDE language servers
+static gpointer my_application_parent_class = nullptr;
+static inline void gtk_widget_show(void*) {}
+static inline void* gtk_widget_get_toplevel(void*) { return nullptr; }
+static inline void* gtk_application_window_new(void*) { return nullptr; }
+static inline void* gtk_header_bar_new() { return nullptr; }
+static inline void gtk_header_bar_set_title(void*, const char*) {}
+static inline void gtk_header_bar_set_show_close_button(void*, int) {}
+static inline void gtk_window_set_titlebar(void*, void*) {}
+static inline void gtk_window_set_title(void*, const char*) {}
+static inline void gtk_window_set_default_size(void*, int, int) {}
+static inline FlDartProject* fl_dart_project_new() { return nullptr; }
+static inline void fl_dart_project_set_dart_entrypoint_arguments(void*, char**) {}
+static inline FlView* fl_view_new(void*) { return nullptr; }
+static inline void gdk_rgba_parse(void*, const char*) {}
+static inline void fl_view_set_background_color(void*, void*) {}
+static inline void gtk_container_add(void*, void*) {}
+static inline void g_signal_connect_swapped(void*, const char*, void*, void*) {}
+static inline void gtk_widget_realize(void*) {}
+static inline void gtk_widget_grab_focus(void*) {}
+static inline char** g_strdupv(char**) { return nullptr; }
+static inline int g_application_register(void*, void*, void*) { return 1; }
+static inline void g_warning(const char*, ...) {}
+static inline void g_application_activate(void*) {}
+#define g_clear_pointer(pp, destroy) do { (void)(pp); (void)(destroy); } while(0)
+static inline void g_strfreev(char**) {}
+static inline void g_set_prgname(const char*) {}
+static inline void* g_object_new(int, ...) { return nullptr; }
+static inline int my_application_get_type() { return 0; }
+static inline const gchar* gdk_x11_screen_get_window_manager_name(GdkScreen*) { return ""; }
+static inline int g_strcmp0(const char*, const char*) { return 0; }
+static inline GdkScreen* gtk_window_get_screen(void*) { return nullptr; }
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
