@@ -106,12 +106,12 @@ cd frontend && flutter run -d chrome --dart-define-from-file=.env
 ## 🗄️ Supabase PostgreSQL Setup
 The application is pre-configured to connect to your Supabase cloud PostgreSQL database:
 ```env
-DATABASE_URL=postgresql://postgres:JtZfEtX4eX0c8vtJ@db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
-SUPABASE_DB_URL=jdbc:postgresql://db.vtxwvilrvtiklqmnbenh.supabase.co:5432/postgres?sslmode=require
-DB_HOST=db.vtxwvilrvtiklqmnbenh.supabase.co
+DATABASE_URL=postgresql://postgres.vtxwvilrvtiklqmnbenh:JtZfEtX4eX0c8vtJ@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+SUPABASE_DB_URL=jdbc:postgresql://aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+DB_HOST=aws-0-ap-northeast-1.pooler.supabase.com
 DB_PORT=5432
 DB_NAME=postgres
-DB_USER=postgres
+DB_USER=postgres.vtxwvilrvtiklqmnbenh
 DB_PASSWORD=JtZfEtX4eX0c8vtJ
 ```
 Database schema definitions and indexes are maintained in [`database/schema.sql`](file:///c:/Users/ssbha/Desktop/CI_Projects/26_11_3_chat/database/schema.sql).
