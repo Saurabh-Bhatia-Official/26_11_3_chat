@@ -22,8 +22,12 @@ class ApiService {
   static const String _keySoftwareName = 'custom_software_name';
   static const String _keyCustomLogo = 'custom_software_logo_data';
 
+  // Default branding applied when not logged in or after logout
+  static const String defaultSoftwareName = 'ChatGuard Next-Gen Chat';
+  static const String defaultAppIcon = 'neon_pulse';
+
   // Dynamic Software Name & Logo State across entire software
-  static final ValueNotifier<String> softwareNameNotifier = ValueNotifier<String>('ChatGuard Next-Gen Chat');
+  static final ValueNotifier<String> softwareNameNotifier = ValueNotifier<String>(defaultSoftwareName);
   static String get softwareName => softwareNameNotifier.value;
 
   static final ValueNotifier<String?> customLogoDataNotifier = ValueNotifier<String?>(null);
@@ -49,24 +53,45 @@ class ApiService {
   }
 
   // Dynamic App Icon State across entire software
-  static final ValueNotifier<String> currentAppIconNotifier = ValueNotifier<String>('neon_pulse');
+  static final ValueNotifier<String> currentAppIconNotifier = ValueNotifier<String>(defaultAppIcon);
   static String get currentAppIcon => currentAppIconNotifier.value;
 
   static UserModel get currentUser => currentUserNotifier.value ?? UserModel(id: 'u_default', username: 'guest', displayName: 'Guest User');
   static set currentUser(UserModel user) {
     currentUserNotifier.value = user;
+
+    // After login only: Change the icon and title of the software, app, and website as per the account data
+    if (user.softwareName != null && user.softwareName!.trim().isNotEmpty) {
+      softwareNameNotifier.value = user.softwareName!.trim();
+    } else {
+      softwareNameNotifier.value = defaultSoftwareName;
+    }
+
+    if (user.customLogoUrl != null && user.customLogoUrl!.trim().isNotEmpty) {
+      customLogoDataNotifier.value = user.customLogoUrl!.trim();
+    } else {
+      customLogoDataNotifier.value = null;
+    }
+
     if (user.appIconPreference.isNotEmpty) {
       currentAppIconNotifier.value = user.appIconPreference;
+    } else {
+      currentAppIconNotifier.value = defaultAppIcon;
     }
+
     if (user.themePreference.isNotEmpty) {
       AppTheme.currentThemeNotifier.value = AppTheme.fromString(user.themePreference);
     }
-    if (user.softwareName != null && user.softwareName!.isNotEmpty) {
-      softwareNameNotifier.value = user.softwareName!;
-    }
-    if (user.customLogoUrl != null && user.customLogoUrl!.isNotEmpty) {
-      customLogoDataNotifier.value = user.customLogoUrl;
-    }
+
+    // Sync to website browser tab title and favicon
+    syncBrandingToPlatform();
+  }
+
+  /// Resets title, app logo, and website favicon back to defaults when logged out
+  static void resetBrandingToDefault() {
+    softwareNameNotifier.value = defaultSoftwareName;
+    customLogoDataNotifier.value = null;
+    currentAppIconNotifier.value = defaultAppIcon;
     syncBrandingToPlatform();
   }
 
@@ -161,39 +186,16 @@ class ApiService {
   /// Initializes saved session from SharedPreferences and syncs with cloud database
   static Future<bool> initSession() async {
     AppTheme.onThemeChanged = (mode) {
-      syncBrandingToCloud(themePreference: mode.name);
       if (currentUserNotifier.value != null) {
         updateProfile(themePreference: mode.name);
       }
     };
 
+    // Ensure we start with default software name, app icon, and website branding before login
+    resetBrandingToDefault();
+
     try {
       final prefs = await SharedPreferences.getInstance();
-
-      final savedTheme = prefs.getString('theme_preference');
-      if (savedTheme != null && savedTheme.isNotEmpty) {
-        AppTheme.currentThemeNotifier.value = AppTheme.fromString(savedTheme);
-      }
-
-      final savedSoftwareName = prefs.getString(_keySoftwareName);
-      if (savedSoftwareName != null && savedSoftwareName.trim().isNotEmpty) {
-        softwareNameNotifier.value = savedSoftwareName.trim();
-      }
-
-      final savedCustomLogo = prefs.getString(_keyCustomLogo);
-      if (savedCustomLogo != null && savedCustomLogo.isNotEmpty) {
-        customLogoDataNotifier.value = savedCustomLogo;
-      }
-
-      final savedAppIcon = prefs.getString('app_icon_preference');
-      if (savedAppIcon != null && savedAppIcon.isNotEmpty) {
-        currentAppIconNotifier.value = savedAppIcon;
-      }
-
-      syncBrandingToPlatform();
-
-      // Async fetch latest cloud branding and appearance settings from database
-      fetchCloudBranding();
 
       final savedToken = prefs.getString(_keyToken);
       if (savedToken != null && savedToken.isNotEmpty) {
@@ -201,17 +203,15 @@ class ApiService {
       }
 
       final userJson = prefs.getString(_keyUser);
-      if (userJson != null && userJson.isNotEmpty) {
+      if (userJson != null && userJson.isNotEmpty && _authToken != null && _authToken!.isNotEmpty) {
         final Map<String, dynamic> data = jsonDecode(userJson);
         final user = UserModel.fromJson(data);
+        // ONLY apply account-specific title and icon when a valid logged-in session exists
         currentUser = user;
         userCache[user.id] = user;
-        syncBrandingToPlatform();
 
         // Refresh latest account information from server in background using JWT
-        if (_authToken != null && _authToken!.isNotEmpty) {
-          fetchAccount().catchError((_) => user);
-        }
+        fetchAccount().catchError((_) => user);
         return true;
       }
     } catch (e) {
@@ -248,32 +248,23 @@ class ApiService {
     return currentUserNotifier.value;
   }
 
-  /// Sets custom software name across app, browser tab, and cloud database
+  /// Sets custom software name across app, browser tab, and account data
   static Future<void> setSoftwareName(String name) async {
-    final trimmed = name.trim().isEmpty ? 'ChatGuard Next-Gen Chat' : name.trim();
+    final trimmed = name.trim().isEmpty ? defaultSoftwareName : name.trim();
     softwareNameNotifier.value = trimmed;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keySoftwareName, trimmed);
     syncBrandingToPlatform();
-    await syncBrandingToCloud(softwareName: trimmed);
     if (currentUserNotifier.value != null) {
       await updateProfile(softwareName: trimmed);
     }
   }
 
-  /// Sets custom software logo URL/data across entire app, browser favicon, and cloud database
+  /// Sets custom software logo URL across app, browser favicon, and account data
   static Future<void> setCustomLogo(String? logoDataUrl) async {
-    customLogoDataNotifier.value = logoDataUrl;
-    final prefs = await SharedPreferences.getInstance();
-    if (logoDataUrl != null && logoDataUrl.isNotEmpty) {
-      await prefs.setString(_keyCustomLogo, logoDataUrl);
-    } else {
-      await prefs.remove(_keyCustomLogo);
-    }
+    final cleanLogo = (logoDataUrl != null && logoDataUrl.trim().isNotEmpty) ? logoDataUrl.trim() : null;
+    customLogoDataNotifier.value = cleanLogo;
     syncBrandingToPlatform();
-    await syncBrandingToCloud(customLogoUrl: logoDataUrl ?? '');
     if (currentUserNotifier.value != null) {
-      await updateProfile(customLogoUrl: logoDataUrl ?? '');
+      await updateProfile(customLogoUrl: cleanLogo ?? '');
     }
   }
 
@@ -282,14 +273,13 @@ class ApiService {
     await setCustomLogo(null);
   }
 
-  /// Sets active app icon preference globally across the entire software and cloud
+  /// Sets active app icon preference for the logged in account
   static Future<void> setAppIcon(String iconId) async {
     currentAppIconNotifier.value = iconId;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('app_icon_preference', iconId);
     syncBrandingToPlatform();
-    await syncBrandingToCloud(appIconPreference: iconId);
-    await updateProfile(appIconPreference: iconId);
+    if (currentUserNotifier.value != null) {
+      await updateProfile(appIconPreference: iconId);
+    }
   }
 
   /// Sets active theme mode globally across the entire software and cloud
@@ -475,28 +465,31 @@ class ApiService {
     currentUserNotifier.value = null;
     _localConversations.clear();
     _localMessages.clear();
+    // After logout: Immediately reset software name, icon, and website branding back to default
+    resetBrandingToDefault();
   }
 
-  /// Uploads media bytes to backend Cloudinary service or converts to data URI
+  /// Uploads media bytes (images, voice, audio, documents) to Cloudinary cloud storage.
+  /// Returns the secure Cloudinary HTTPS CDN URL or null on failure.
   static Future<String?> uploadMedia(Uint8List bytes, String filename) async {
     try {
       final uri = Uri.parse('$baseUrl/media/upload');
       final request = http.MultipartRequest('POST', uri);
       request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 8));
+      final streamedResponse = await request.send().timeout(const Duration(seconds: 15));
       final response = await http.Response.fromStream(streamedResponse);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['url'] != null) {
           return data['url'] as String;
         }
+      } else {
+        debugPrint('Cloudinary upload returned status ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      debugPrint('Media upload notice: $e');
+      debugPrint('Cloudinary upload error: $e');
     }
-    // High-performance data URI fallback so user image displays immediately
-    final base64Data = base64Encode(bytes);
-    return 'data:image/png;base64,$base64Data';
+    return null;
   }
 
   // ==========================================

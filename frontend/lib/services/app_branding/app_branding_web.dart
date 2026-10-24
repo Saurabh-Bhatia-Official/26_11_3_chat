@@ -9,20 +9,19 @@ class AppBrandingPlatform {
     try {
       html.document.title = title;
 
-      if (iconDataUrl != null && iconDataUrl.isNotEmpty) {
-        final existingLinks = html.document.querySelectorAll("link[rel*='icon']");
-        for (final el in existingLinks) {
-          el.remove();
-        }
-
-        final newLink = html.LinkElement()
-          ..id = 'app-dynamic-favicon'
-          ..rel = 'shortcut icon'
-          ..type = iconDataUrl.startsWith('data:image/svg') ? 'image/svg+xml' : 'image/png'
-          ..href = iconDataUrl;
-
-        html.document.head?.append(newLink);
+      final existingLinks = html.document.querySelectorAll("link[rel*='icon']");
+      for (final el in existingLinks) {
+        el.remove();
       }
+
+      final href = (iconDataUrl != null && iconDataUrl.isNotEmpty) ? iconDataUrl : 'favicon.png';
+      final newLink = html.LinkElement()
+        ..id = 'app-dynamic-favicon'
+        ..rel = 'shortcut icon'
+        ..type = href.startsWith('data:image/svg') ? 'image/svg+xml' : 'image/png'
+        ..href = href;
+
+      html.document.head?.append(newLink);
     } catch (_) {}
   }
 }

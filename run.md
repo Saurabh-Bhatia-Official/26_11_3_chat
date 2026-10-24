@@ -215,16 +215,21 @@ DB_USER=neondb_owner
 DB_PASSWORD=npg_75prOHxhoDCa
 DB_DRIVER=org.postgresql.Driver
 
-# Cloudinary Media Storage
-CLOUDINARY_CLOUD_NAME=demo
-CLOUDINARY_API_KEY=demo_key
-CLOUDINARY_API_SECRET=demo_secret
+# Cloudinary Cloud Storage (Images, Voice Recordings, Videos, Documents)
+CLOUDINARY_CLOUD_NAME=dltpal1gr
+CLOUDINARY_API_KEY=868572831331282
+CLOUDINARY_API_SECRET=Fjv2tA2TvigvvNRbPNX1BDGiXrU
+CLOUDINARY_URL=cloudinary://868572831331282:Fjv2tA2TvigvvNRbPNX1BDGiXrU@dltpal1gr
 
 # Server & Security
 PORT=8085
 JWT_SECRET=NextGenChatSuperSecretKey2026SecureTokenGeneratorForProductionDeployment98765
 CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://localhost:8080,http://localhost:8085
 ```
+
+> **Data Separation Architecture**:
+> - **Neon Cloud PostgreSQL**: Sole database. Stores user credentials, message records, group membership, timestamps, and the Cloudinary HTTPS URLs.
+> - **Cloudinary**: Sole media & file storage. All image, audio, video, and document binary payloads are uploaded directly to Cloudinary and served via Cloudinary's global CDN.
 
 ### B. Frontend (`frontend/.env` & `frontend/.env.example`)
 Configures the Flutter client endpoints and feature toggles:

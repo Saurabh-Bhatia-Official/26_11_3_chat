@@ -28,9 +28,10 @@ spring:
             '[non_contextual_creation]': true
 
 cloudinary:
-  cloud-name: ${CLOUDINARY_CLOUD_NAME:demo}
-  api-key: ${CLOUDINARY_API_KEY:demo_key}
-  api-secret: ${CLOUDINARY_API_SECRET:demo_secret}
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:dltpal1gr}
+  api-key: ${CLOUDINARY_API_KEY:868572831331282}
+  api-secret: ${CLOUDINARY_API_SECRET:Fjv2tA2TvigvvNRbPNX1BDGiXrU}
+  url: ${CLOUDINARY_URL:cloudinary://868572831331282:Fjv2tA2TvigvvNRbPNX1BDGiXrU@dltpal1gr}
 
 app:
   jwt:

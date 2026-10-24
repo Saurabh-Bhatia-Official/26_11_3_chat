@@ -11,7 +11,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 public class CloudinaryService {
@@ -33,16 +32,18 @@ public class CloudinaryService {
         log.info("Uploading file '{}' (size: {} bytes, type: {}) to Cloudinary folder '{}'",
                 originalFilename, file.getSize(), contentType, folder);
 
-        // Detect resource type
+        // Detect Cloudinary resource type: image, video (audio/video), or raw (documents, pdf, zip, etc.)
         String resourceType = "auto";
         if (contentType.startsWith("image/")) {
             resourceType = "image";
         } else if (contentType.startsWith("video/") || contentType.startsWith("audio/")) {
             resourceType = "video";
+        } else {
+            resourceType = "raw";
         }
 
         try {
-            // Attempt actual Cloudinary upload if API key is configured
+            // Upload to Cloudinary cloud storage
             Map<?, ?> uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.asMap(
                     "folder", "chatgen/" + folder,
                     "resource_type", resourceType,
@@ -50,26 +51,24 @@ public class CloudinaryService {
                     "unique_filename", true
             ));
 
+            String secureUrl = (String) uploadResult.get("secure_url");
+            if (secureUrl == null) {
+                secureUrl = (String) uploadResult.get("url");
+            }
+
+            log.info("Successfully uploaded '{}' to Cloudinary: {}", originalFilename, secureUrl);
+
             Map<String, Object> response = new HashMap<>();
-            response.put("url", uploadResult.get("secure_url"));
+            response.put("url", secureUrl);
             response.put("public_id", uploadResult.get("public_id"));
             response.put("bytes", uploadResult.get("bytes"));
             response.put("format", uploadResult.get("format"));
             response.put("resource_type", uploadResult.get("resource_type"));
             return response;
         } catch (Exception ex) {
-            log.info("Cloudinary upload fallback to direct data URI: {}", ex.getMessage());
-            String simulatedPublicId = "chatgen/" + folder + "/" + UUID.randomUUID().toString().substring(0, 8);
-            String base64Data = java.util.Base64.getEncoder().encodeToString(file.getBytes());
-            String fallbackUrl = "data:" + contentType + ";base64," + base64Data;
-
-            Map<String, Object> fallback = new HashMap<>();
-            fallback.put("url", fallbackUrl);
-            fallback.put("public_id", simulatedPublicId);
-            fallback.put("bytes", file.getSize());
-            fallback.put("format", contentType);
-            fallback.put("resource_type", resourceType);
-            return fallback;
+            log.error("Cloudinary upload failed for '{}': {}", originalFilename, ex.getMessage());
+            throw new IOException("Failed to upload file to Cloudinary: " + ex.getMessage() +
+                    ". Please ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) are configured.", ex);
         }
     }
 }

@@ -611,11 +611,22 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
             : (audio.mimeType.contains('mp4') ? 'mp4' : 'webm');
         final filename = 'voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
         final mediaUrl = await ApiService.uploadMedia(audio.bytes, filename);
-        _sendMessage(
-          type: MessageType.audio,
-          mediaUrl: mediaUrl,
-          customContent: caption.isNotEmpty ? caption : '🎙️ Voice note (${audio.formattedDuration})',
-        );
+        if (mediaUrl != null) {
+          _sendMessage(
+            type: MessageType.audio,
+            mediaUrl: mediaUrl,
+            customContent: caption.isNotEmpty ? caption : '🎙️ Voice note (${audio.formattedDuration})',
+          );
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Cloudinary voice upload failed. Please verify Cloudinary credentials in Render.'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        }
       } finally {
         if (mounted) {
           setState(() => _isSendingVoice = false);
@@ -636,11 +647,22 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
 
       try {
         final mediaUrl = await ApiService.uploadMedia(bytes, filename);
-        _sendMessage(
-          type: MessageType.image,
-          mediaUrl: mediaUrl,
-          customContent: caption.isNotEmpty ? caption : 'Shared an image',
-        );
+        if (mediaUrl != null) {
+          _sendMessage(
+            type: MessageType.image,
+            mediaUrl: mediaUrl,
+            customContent: caption.isNotEmpty ? caption : 'Shared an image',
+          );
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Cloudinary image upload failed. Please verify Cloudinary credentials in Render.'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        }
       } finally {
         if (mounted) {
           setState(() => _isUploading = false);
@@ -661,11 +683,22 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
 
       try {
         final mediaUrl = await ApiService.uploadMedia(bytes, filename);
-        _sendMessage(
-          type: MessageType.file,
-          mediaUrl: mediaUrl,
-          customContent: caption.isNotEmpty ? caption : filename,
-        );
+        if (mediaUrl != null) {
+          _sendMessage(
+            type: MessageType.file,
+            mediaUrl: mediaUrl,
+            customContent: caption.isNotEmpty ? caption : filename,
+          );
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Cloudinary document upload failed. Please verify Cloudinary credentials in Render.'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+        }
       } finally {
         if (mounted) {
           setState(() => _isUploading = false);
