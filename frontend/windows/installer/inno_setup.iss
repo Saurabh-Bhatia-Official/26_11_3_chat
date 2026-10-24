@@ -6,7 +6,7 @@
 #define MyAppName "Whisper"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Whisper Team"
-#define MyAppURL "https://two6-11-3-chat.onrender.com"
+#define MyAppURL "https://whisper-7a0e.onrender.com"
 #define MyAppExeName "Whisper.exe"
 #define MyAppSourceDir "..\..\build\windows\x64\runner\Release"
 

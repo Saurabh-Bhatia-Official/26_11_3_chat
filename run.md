@@ -66,11 +66,11 @@ java -jar target/chat-backend-1.0.0.jar
 ```
 
 #### 6. Verify Backend is Running:
-- **Live Render Cloud Backend**: [https://two6-11-3-chat.onrender.com/api/system/branding](https://two6-11-3-chat.onrender.com/api/system/branding)
+- **Live Render Cloud Backend**: [https://whisper-7a0e.onrender.com/api/system/branding](https://whisper-7a0e.onrender.com/api/system/branding)
 - **Local Dev Server**: [http://localhost:8085/api/auth/users](http://localhost:8085/api/auth/users)
 - **cURL / Bash (Live Cloud)**:
   ```bash
-  curl https://two6-11-3-chat.onrender.com/api/system/branding
+  curl https://whisper-7a0e.onrender.com/api/system/branding
   ```
 
 > **Database Connection**: Strictly connects to the cloud **Supabase Cloud PostgreSQL** database configured in `application.yml` and environment variables. Local database has been completely removed.
@@ -250,10 +250,10 @@ CORS_ORIGINS=https://*.vercel.app,http://localhost:3000,http://localhost:8080,ht
 Configures the Flutter client endpoints and feature toggles:
 ```properties
 # Spring Boot Backend API endpoint (Render Cloud Host)
-API_BASE_URL=https://two6-11-3-chat.onrender.com/api
+API_BASE_URL=https://whisper-7a0e.onrender.com/api
 
 # WebSocket STOMP endpoint
-WEBSOCKET_URL=https://two6-11-3-chat.onrender.com/ws
+WEBSOCKET_URL=https://whisper-7a0e.onrender.com/ws
 
 # App Settings
 APP_NAME=Whisper

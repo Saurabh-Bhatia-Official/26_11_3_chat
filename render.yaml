@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: two6-11-3-chat
+    name: whisper-7a0e
     runtime: docker
     rootDir: backend
     dockerfilePath: Dockerfile

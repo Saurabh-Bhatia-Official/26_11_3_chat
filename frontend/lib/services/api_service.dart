@@ -12,7 +12,7 @@ class ApiService {
   // Configurable backend URL (reads from frontend/.env or defaults to Render backend)
   static String baseUrl = const String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://two6-11-3-chat.onrender.com/api',
+    defaultValue: 'https://whisper-7a0e.onrender.com/api',
   );
 
   // Preference Storage Keys
