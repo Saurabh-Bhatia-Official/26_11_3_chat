@@ -28268,13 +28268,12 @@ case 7:n=b
 m=A.ci(J.aB(n.a,"saved_auth_jwt_token"))
 if(m!=null&&m.length!==0)$.uS=m
 l=A.ci(J.aB(n.a,"saved_auth_user_json"))
-h=!1
-if(l!=null)if(l.length!==0){h=$.uS
-h=h!=null&&h.length!==0}if(h){k=B.H.di(0,l,null)
+if(l!=null&&l.length!==0){k=B.H.di(0,l,null)
 j=A.xZ(k)
 A.qs(j)
 $.j8.n(0,j.a,j)
-A.uT().iX(new A.a6e(j))
+h=$.uS
+if(h!=null&&h.length!==0)A.uT().iX(new A.a6e(j))
 q=!0
 s=1
 break}p=2

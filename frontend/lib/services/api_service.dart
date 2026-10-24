@@ -203,15 +203,17 @@ class ApiService {
       }
 
       final userJson = prefs.getString(_keyUser);
-      if (userJson != null && userJson.isNotEmpty && _authToken != null && _authToken!.isNotEmpty) {
+      if (userJson != null && userJson.isNotEmpty) {
         final Map<String, dynamic> data = jsonDecode(userJson);
         final user = UserModel.fromJson(data);
-        // ONLY apply account-specific title and icon when a valid logged-in session exists
+        // ONLY apply account-specific title and icon when a logged-in user exists
         currentUser = user;
         userCache[user.id] = user;
 
-        // Refresh latest account information from server in background using JWT
-        fetchAccount().catchError((_) => user);
+        // Refresh latest account information from server in background if token exists
+        if (_authToken != null && _authToken!.isNotEmpty) {
+          fetchAccount().catchError((_) => user);
+        }
         return true;
       }
     } catch (e) {
