@@ -40,7 +40,11 @@ static inline int g_strcmp0(const char*, const char*) { return 0; }
 static inline GdkScreen* gtk_window_get_screen(void*) { return nullptr; }
 #endif
 
+#if defined(__linux__) || (defined(__has_include) && __has_include(<flutter_linux/flutter_linux.h>))
 #include "flutter/generated_plugin_registrant.h"
+#else
+void fl_register_plugins(FlPluginRegistry* registry);
+#endif
 
 struct _MyApplication {
   GtkApplication parent_instance;
