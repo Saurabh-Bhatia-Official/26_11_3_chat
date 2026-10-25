@@ -12,3 +12,6 @@ PRODUCT_BUNDLE_IDENTIFIER = com.chatgen.whisper
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 Whisper. All rights reserved.
+
+// Minimum macOS Deployment Target
+MACOSX_DEPLOYMENT_TARGET = 12.0

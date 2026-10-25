@@ -136,6 +136,17 @@ jobs:
         run: |
           cd frontend
           flutter pub get
+          dart run tool/patch_webrtc.dart
+
+      - name: 🩹 Patch flutter_webrtc Headers for Darwin/SPM
+        run: |
+          find ~/.pub-cache -name "FlutterWebRTCPlugin.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRTCFrameCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRTCDesktopCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterDataPacketCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRTCFrameCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "AudioUtils.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRPScreenRecorder.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
 
       - name: 🧪 Run Automated Tests
         run: |
@@ -190,6 +201,17 @@ jobs:
         run: |
           cd frontend
           flutter pub get
+          dart run tool/patch_webrtc.dart
+
+      - name: 🩹 Patch flutter_webrtc Headers for Darwin/SPM
+        run: |
+          find ~/.pub-cache -name "FlutterWebRTCPlugin.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRTCFrameCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRTCDesktopCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterDataPacketCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRTCFrameCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "AudioUtils.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          find ~/.pub-cache -name "FlutterRPScreenRecorder.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
 
       - name: 🔨 Build macOS Release
         run: |

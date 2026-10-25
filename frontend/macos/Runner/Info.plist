@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Whisper requires camera access to participate in video calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Whisper requires microphone access to record audio messages and participate in calls.</string>
 </dict>
 </plist>
