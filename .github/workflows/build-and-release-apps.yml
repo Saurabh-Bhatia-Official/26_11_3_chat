@@ -140,13 +140,22 @@ jobs:
 
       - name: 🩹 Patch flutter_webrtc Headers for Darwin/SPM
         run: |
-          find ~/.pub-cache -name "FlutterWebRTCPlugin.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRTCFrameCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRTCDesktopCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterDataPacketCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRTCFrameCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "AudioUtils.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRPScreenRecorder.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          python3 -c "
+          import os, glob
+          roots = [os.path.expanduser('~/.pub-cache'), os.getcwd(), os.path.dirname(os.getcwd())]
+          for root in roots:
+              if not os.path.exists(root): continue
+              for p in glob.glob(root + '/**/*.h', recursive=True):
+                  if 'flutter_webrtc' in p:
+                      try:
+                          with open(p, 'r', encoding='utf-8') as f:
+                              c = f.read()
+                          if 'TARGET_OS_' in c and 'TargetConditionals.h' not in c:
+                              with open(p, 'w', encoding='utf-8') as f:
+                                  f.write('#import <TargetConditionals.h>\n' + c)
+                              print(f'Patched: {p}')
+                      except Exception: pass
+          "
 
       - name: 🧪 Run Automated Tests
         run: |
@@ -205,13 +214,22 @@ jobs:
 
       - name: 🩹 Patch flutter_webrtc Headers for Darwin/SPM
         run: |
-          find ~/.pub-cache -name "FlutterWebRTCPlugin.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRTCFrameCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRTCDesktopCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterDataPacketCryptor.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRTCFrameCapturer.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "AudioUtils.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
-          find ~/.pub-cache -name "FlutterRPScreenRecorder.h" -exec sed -i '' '1s|^|#import <TargetConditionals.h>\n|' {} + 2>/dev/null || true
+          python3 -c "
+          import os, glob
+          roots = [os.path.expanduser('~/.pub-cache'), os.getcwd(), os.path.dirname(os.getcwd())]
+          for root in roots:
+              if not os.path.exists(root): continue
+              for p in glob.glob(root + '/**/*.h', recursive=True):
+                  if 'flutter_webrtc' in p:
+                      try:
+                          with open(p, 'r', encoding='utf-8') as f:
+                              c = f.read()
+                          if 'TARGET_OS_' in c and 'TargetConditionals.h' not in c:
+                              with open(p, 'w', encoding='utf-8') as f:
+                                  f.write('#import <TargetConditionals.h>\n' + c)
+                              print(f'Patched: {p}')
+                      except Exception: pass
+          "
 
       - name: 🔨 Build macOS Release
         run: |
