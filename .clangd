@@ -1,9 +1,29 @@
+---
 If:
   PathMatch: .*frontend[/\\]linux[/\\].*
 CompileFlags:
   Add:
     - -Ifrontend/linux/runner
     - -Ifrontend/linux
+Diagnostics:
+  Suppress:
+    - unused-includes
+
+---
+If:
+  PathMatch: .*frontend[/\\]windows[/\\].*
+CompileFlags:
+  Add:
+    - -Ifrontend/windows/runner
+    - -Ifrontend/windows
+    - -Ifrontend/windows/flutter/ephemeral
+    - -Ifrontend/windows/flutter/ephemeral/cpp_client_wrapper/include
+    - -DWIN32
+    - -D_WINDOWS
+    - -DNOMINMAX
+    - -DUNICODE
+    - -D_UNICODE
+    - -std=c++17
 Diagnostics:
   Suppress:
     - unused-includes
