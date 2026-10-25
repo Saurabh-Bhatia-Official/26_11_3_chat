@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import 'app_branding/app_branding.dart';
 import 'network_service.dart';
 import 'connectivity/connectivity_platform.dart';
+import 'group_icon_helper.dart';
 
 class ApiService {
   // Configurable backend URL (reads from frontend/.env or defaults to Render backend)
@@ -57,6 +58,11 @@ class ApiService {
   // Dynamic App Icon State across entire software
   static final ValueNotifier<String> currentAppIconNotifier = ValueNotifier<String>(defaultAppIcon);
   static String get currentAppIcon => currentAppIconNotifier.value;
+
+  // Persistent Group Icon State across entire software
+  static ValueNotifier<String> get currentGroupIconNotifier => GroupIconHelper.persistentGroupIconNotifier;
+  static String get currentGroupIcon => GroupIconHelper.currentGroupIcon;
+  static Future<void> setPersistentGroupIcon(String iconValue) async => GroupIconHelper.savePersistentGroupIcon(iconValue);
 
   static UserModel get currentUser => currentUserNotifier.value ?? UserModel(id: 'u_default', username: 'guest', displayName: 'Guest User');
   static set currentUser(UserModel user) {
@@ -198,6 +204,9 @@ class ApiService {
 
     // Initialize network and connectivity monitoring
     NetworkService.initialize(baseUrl: baseUrl);
+
+    // Initialize and load persistent group icon from storage
+    await GroupIconHelper.initPersistentGroupIcon();
 
     try {
       final prefs = await SharedPreferences.getInstance();

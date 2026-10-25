@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/api_service.dart';
-import '../theme/app_theme.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/network_status_banner.dart';
 import '../widgets/software_logo_widget.dart';
+import '../widgets/avatar_badge.dart';
+import '../widgets/group_icon_picker_modal.dart';
+import '../services/group_icon_helper.dart';
 
 class AuthScreen extends StatefulWidget {
   final VoidCallback onAuthenticated;
@@ -65,6 +67,31 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     _signupEmailController.dispose();
     _signupPasswordController.dispose();
     super.dispose();
+  }
+
+  void _customizeGroupIconSetup() async {
+    final chosen = await GroupIconPickerModal.show(
+      context,
+      currentIcon: ApiService.currentGroupIcon,
+      title: 'Group Icon Setup & Preferences',
+    );
+    if (chosen != null && mounted) {
+      await ApiService.setPersistentGroupIcon(chosen);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white, size: 18),
+              SizedBox(width: 8),
+              Text('Group icon preference saved permanently!'),
+            ],
+          ),
+          backgroundColor: Color(0xFF10B981),
+          duration: Duration(milliseconds: 1800),
+        ),
+      );
+    }
   }
 
   void _handleLogin() async {
@@ -253,8 +280,72 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           ],
                         ),
                       ),
+                      const SizedBox(height: 16),
+
+                      // Group Icon Setup & Preferences during Login or Initial Setup
+                      ValueListenableBuilder<String>(
+                        valueListenable: ApiService.currentGroupIconNotifier,
+                        builder: (context, activeGroupIcon, _) {
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: _customizeGroupIconSetup,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.04),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  AvatarBadge(
+                                    avatarUrl: activeGroupIcon,
+                                    name: 'Group',
+                                    radius: 18,
+                                    isGroup: true,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Text(
+                                              'Group Icon Setup',
+                                              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF06B6D4).withValues(alpha: 0.2),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: const Text('Saved Permanently', style: TextStyle(color: Color(0xFF06B6D4), fontSize: 9.5, fontWeight: FontWeight.bold)),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          GroupIconHelper.isPreset(activeGroupIcon)
+                                              ? GroupIconHelper.getPreset(activeGroupIcon).name
+                                              : 'Custom image icon selected',
+                                          style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.palette_outlined, color: Color(0xFF06B6D4), size: 18),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
+
                 ),
               ],
             ),

@@ -1,0 +1,507 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/models/models.dart';
+import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/group_icon_helper.dart';
+import 'package:frontend/services/network_service.dart';
+import 'package:frontend/services/permission_service.dart';
+import 'package:frontend/theme/app_theme.dart';
+import 'package:frontend/views/home_screen.dart';
+import 'package:frontend/widgets/avatar_badge.dart';
+import 'package:frontend/widgets/camera_capture_dialog.dart';
+import 'package:frontend/widgets/group_icon_picker_modal.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    PermissionService.mockStatus = null;
+    CameraCaptureHelper.mockCapture = null;
+    NetworkService.mockHasInternet = true;
+    NetworkService.mockRequestHandler = null;
+    NetworkService.dispose();
+  });
+
+  tearDown(() {
+    PermissionService.mockStatus = null;
+    CameraCaptureHelper.mockCapture = null;
+    NetworkService.mockHasInternet = null;
+    NetworkService.mockRequestHandler = null;
+    NetworkService.dispose();
+  });
+
+  group('Requirement 1: Unique UI Session for Each Tab', () {
+    testWidgets('HomeScreen preserves independent tab sessions using IndexedStack', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      // Setup authenticated user in ApiService
+      ApiService.currentUserNotifier.value = UserModel(
+        id: 'test_user_1',
+        username: 'session_tester',
+        displayName: 'Session Tester',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HomeScreen(
+              currentThemeMode: AppThemeMode.obsidianCyber,
+              onThemeChanged: (_) {},
+              onLogout: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify IndexedStack is present to manage independent UI sessions
+      final indexedStackFinder = find.byType(IndexedStack);
+      expect(indexedStackFinder, findsOneWidget);
+
+      final IndexedStack indexedStack = tester.widget(indexedStackFinder);
+      expect(indexedStack.index, equals(0)); // Default is tab 0 (chats)
+      expect(indexedStack.children.length, equals(3)); // chats, safetyGuardian, identity
+
+      // Switch to Tab 1 (Safety Guardian)
+      final safetyTabFinder = find.byIcon(Icons.shield_outlined);
+      expect(safetyTabFinder, findsOneWidget);
+      await tester.tap(safetyTabFinder);
+      await tester.pumpAndSettle();
+
+      final IndexedStack stackAfterTab1 = tester.widget(indexedStackFinder);
+      expect(stackAfterTab1.index, equals(1));
+
+      // Switch to Tab 2 (Identity & Settings)
+      final identityTabFinder = find.byIcon(Icons.palette_outlined);
+      expect(identityTabFinder, findsOneWidget);
+      await tester.tap(identityTabFinder);
+      await tester.pumpAndSettle();
+
+      final IndexedStack stackAfterTab2 = tester.widget(indexedStackFinder);
+      expect(stackAfterTab2.index, equals(2));
+
+      // Switch back to Tab 0 (Chats) - state remains preserved in IndexedStack
+      final chatsTabFinder = find.byIcon(Icons.chat_bubble_outline);
+      expect(chatsTabFinder, findsOneWidget);
+      await tester.tap(chatsTabFinder);
+      await tester.pumpAndSettle();
+
+      final IndexedStack stackAfterReturn = tester.widget(indexedStackFinder);
+      expect(stackAfterReturn.index, equals(0));
+    });
+  });
+
+  group('Requirement 2: Permission Requests & Edge Case Handling', () {
+    testWidgets('Permission rationale dialog explains purpose and proceeds on user continue', (tester) async {
+      bool? userProceeded;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  userProceeded = await PermissionService.showRationaleDialog(
+                    ctx,
+                    AppPermissionType.camera,
+                  );
+                },
+                child: const Text('Show Rationale'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Show Rationale'));
+      await tester.pumpAndSettle();
+
+      // Rationale dialog displays purpose and explanation
+      expect(find.text('Camera Permission'), findsOneWidget);
+      expect(find.text('Continue'), findsOneWidget);
+
+      // Confirm rationale
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(userProceeded, isTrue);
+    });
+
+    testWidgets('Permission granted flow returns true', (tester) async {
+      PermissionService.mockStatus = {
+        AppPermissionType.camera: PermissionStatus.granted,
+      };
+
+      bool? granted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  granted = await PermissionService.requestPermission(
+                    ctx,
+                    AppPermissionType.camera,
+                  );
+                },
+                child: const Text('Request Camera'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Request Camera'));
+      await tester.pumpAndSettle();
+
+      expect(granted, isTrue);
+      expect(find.text('Permission Denied'), findsNothing);
+      expect(find.text('Permission Required'), findsNothing);
+    });
+
+    testWidgets('Permission denied flow shows explanation dialog and returns false', (tester) async {
+      PermissionService.mockStatus = {
+        AppPermissionType.microphone: PermissionStatus.denied,
+      };
+
+      bool? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  result = await PermissionService.requestPermission(
+                    ctx,
+                    AppPermissionType.microphone,
+                  );
+                },
+                child: const Text('Request Mic'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Request Mic'));
+      await tester.pumpAndSettle();
+
+      // Denied explanation dialog shown with clear message
+      expect(find.text('Microphone Permission Denied'), findsOneWidget);
+      expect(find.text('Dismiss'), findsOneWidget);
+
+      await tester.tap(find.text('Dismiss'));
+      await tester.pumpAndSettle();
+
+      expect(result, isFalse);
+    });
+
+    testWidgets('Permission permanently denied flow shows settings guidance', (tester) async {
+      PermissionService.mockStatus = {
+        AppPermissionType.photos: PermissionStatus.permanentlyDenied,
+      };
+
+      bool? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  result = await PermissionService.requestPermission(
+                    ctx,
+                    AppPermissionType.photos,
+                  );
+                },
+                child: const Text('Request Photos'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Request Photos'));
+      await tester.pumpAndSettle();
+
+      // Permanently denied dialog shown with "Open Settings"
+      expect(find.text('Permission Required'), findsOneWidget);
+      expect(find.text('Open Settings'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(result, isFalse);
+    });
+
+    testWidgets('Camera hardware unavailable dialog displays gracefully', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () => PermissionService.showUnavailableDialog(ctx),
+                child: const Text('Show Unavailable'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Show Unavailable'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Camera Unavailable'), findsOneWidget);
+      expect(find.text('Close'), findsOneWidget);
+
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.text('Camera Unavailable'), findsNothing);
+    });
+  });
+
+  group('Requirement 3 & 4: Group Icon Customization & Persistent Icon Changes', () {
+    test('Preset icons are defined with valid names and icons', () {
+      expect(GroupIconHelper.presets.isNotEmpty, isTrue);
+      for (final preset in GroupIconHelper.presets) {
+        expect(preset.id.isNotEmpty, isTrue);
+        expect(preset.name.isNotEmpty, isTrue);
+        expect(preset.primaryColor, isNotNull);
+        expect(preset.icon, isNotNull);
+      }
+    });
+
+    test('Saving and loading persistent group icon with SharedPreferences', () async {
+      // Initially default
+      final initial = await GroupIconHelper.initPersistentGroupIcon();
+      expect(initial, equals('preset:community_guild'));
+
+      // Save a new preset
+      await GroupIconHelper.savePersistentGroupIcon('preset:cyber_pulse');
+      final loaded = await GroupIconHelper.initPersistentGroupIcon();
+      expect(loaded, equals('preset:cyber_pulse'));
+      expect(GroupIconHelper.persistentGroupIconNotifier.value, equals('preset:cyber_pulse'));
+
+      // Save a custom image data URI
+      const dummyDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      await GroupIconHelper.savePersistentGroupIcon(dummyDataUri);
+      final loadedImage = await GroupIconHelper.initPersistentGroupIcon();
+      expect(loadedImage, equals(dummyDataUri));
+      expect(GroupIconHelper.persistentGroupIconNotifier.value, equals(dummyDataUri));
+    });
+
+    test('ApiService.initSession restores persistent group icon across application restarts', () async {
+      // Simulate previous session having saved an icon
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(GroupIconHelper.keyGroupIconPreference, 'preset:phoenix_fire');
+
+      // Simulate App Start / Session init
+      await ApiService.initSession();
+
+      expect(ApiService.currentGroupIcon, equals('preset:phoenix_fire'));
+      expect(ApiService.currentGroupIconNotifier.value, equals('preset:phoenix_fire'));
+
+      // Now change icon via ApiService
+      await ApiService.setPersistentGroupIcon('preset:crypto_vault');
+      expect(ApiService.currentGroupIcon, equals('preset:crypto_vault'));
+
+      // Simulate application restart
+      await ApiService.initSession();
+      expect(ApiService.currentGroupIcon, equals('preset:crypto_vault'));
+
+      NetworkService.dispose();
+    });
+
+    testWidgets('AvatarBadge renders preset group icon and reactive fallback', (tester) async {
+      await GroupIconHelper.savePersistentGroupIcon('preset:shield_guardian');
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AvatarBadge(
+              avatarUrl: 'preset:shield_guardian',
+              name: 'Security Shield',
+              isGroup: true,
+              radius: 24,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify the preset icon for shield_guardian is rendered
+      expect(find.byIcon(Icons.security_rounded), findsOneWidget);
+    });
+  });
+
+  group('Requirement 5: Camera Capture & Preview Flow', () {
+    testWidgets('CameraPreviewDialog displays preview with Confirm and Retake options', (tester) async {
+      // 1x1 transparent PNG
+      final dummyBytes = base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+
+      CameraCaptureResult? confirmed;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  confirmed = await showDialog<CameraCaptureResult?>(
+                    context: ctx,
+                    builder: (dCtx) => CameraPreviewDialog(
+                      initialBytes: dummyBytes,
+                      initialFilename: 'photo.png',
+                    ),
+                  );
+                },
+                child: const Text('Open Preview'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Preview'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Preview Photo'), findsOneWidget);
+      expect(find.text('Retake'), findsOneWidget);
+      expect(find.text('Confirm & Use'), findsOneWidget);
+
+      // Tap Confirm & Use
+      await tester.tap(find.text('Confirm & Use'));
+      await tester.pumpAndSettle();
+
+      expect(confirmed, isNotNull);
+      expect(confirmed!.dataUri.startsWith('data:image/png;base64,'), isTrue);
+    });
+  });
+
+  group('Requirement 6: Camera & Gallery Integration for Group Icon Customization', () {
+    testWidgets('GroupIconPickerModal opens and allows selecting preset icons', (tester) async {
+      tester.view.physicalSize = const Size(1280, 960);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      String? selected;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  selected = await GroupIconPickerModal.show(
+                    ctx,
+                    currentIcon: 'preset:community_guild',
+                  );
+                },
+                child: const Text('Open Picker'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Open Picker'));
+      await tester.pumpAndSettle();
+
+      // Verify modal options and tabs are shown
+      expect(find.text('Customize Group Icon'), findsOneWidget);
+      expect(find.text('Photo / Gallery'), findsOneWidget);
+      expect(find.text('Available Icons'), findsOneWidget);
+      expect(find.text('Capture with Camera'), findsOneWidget);
+      expect(find.text('Choose from Device Gallery'), findsOneWidget);
+
+      // Switch to Available Icons tab
+      await tester.tap(find.text('Available Icons'));
+      await tester.pumpAndSettle();
+
+      // Select preset icon 'Cyber Pulse'
+      final cyberPulseFinder = find.text('Cyber Pulse');
+      expect(cyberPulseFinder, findsOneWidget);
+      await tester.tap(cyberPulseFinder);
+      await tester.pumpAndSettle();
+
+      expect(selected, equals('preset:cyber_pulse'));
+    });
+
+    testWidgets('Camera photo selection saves persistently across restart', (tester) async {
+      // 1. Configure mock camera to return photo
+      const sampleBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      final imageBytes = base64Decode(sampleBase64);
+
+      CameraCaptureHelper.mockCapture = () async => CameraCaptureResult(
+        bytes: imageBytes,
+        filename: 'camera_group_icon.png',
+        dataUri: 'data:image/png;base64,$sampleBase64',
+      );
+
+      // 2. Perform capture via CameraCaptureHelper
+      String? savedIcon;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  final captured = await CameraCaptureHelper.captureWithCamera(ctx);
+                  if (captured != null) {
+                    await ApiService.setPersistentGroupIcon(captured.dataUri);
+                    savedIcon = captured.dataUri;
+                  }
+                },
+                child: const Text('Capture Camera Icon'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('Capture Camera Icon'));
+      await tester.pumpAndSettle();
+
+      expect(savedIcon, isNotNull);
+      expect(savedIcon!.startsWith('data:image/png;base64,'), isTrue);
+      expect(ApiService.currentGroupIcon, equals(savedIcon));
+
+      // 3. Restart application simulation
+      await ApiService.initSession();
+      expect(ApiService.currentGroupIcon, equals(savedIcon));
+      NetworkService.dispose();
+
+      // 4. Verify AvatarBadge displays custom image data URI correctly
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AvatarBadge(
+              avatarUrl: ApiService.currentGroupIcon,
+              name: 'Secret Operations Group',
+              isGroup: true,
+              radius: 28,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // CircleAvatar rendered with MemoryImage provider
+      final avatarFinder = find.byType(CircleAvatar);
+      expect(avatarFinder, findsOneWidget);
+      final CircleAvatar circleAvatar = tester.widget(avatarFinder);
+      expect(circleAvatar.backgroundImage, isA<MemoryImage>());
+    });
+  });
+}

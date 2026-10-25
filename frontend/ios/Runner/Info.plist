@@ -64,7 +64,12 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Whisper requires camera access to capture photos for your group icon, profile picture, and video calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Whisper requires microphone access to record voice messages and participate in audio and video calls.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Whisper requires access to your photo library to select images for group icons, profile pictures, and file sharing.</string>
 </dict>
 </plist>

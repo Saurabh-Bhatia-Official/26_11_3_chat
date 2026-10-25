@@ -79,6 +79,12 @@ class NetworkService {
     });
   }
 
+  /// Cancels background heartbeat timer and cleans up resources
+  static void dispose() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
   /// Proactively tests internet connectivity and backend availability
   static Future<NetworkCondition> checkBackendHealth([String? overrideBaseUrl]) async {
     final baseUrl = overrideBaseUrl ?? _monitoredBaseUrl;

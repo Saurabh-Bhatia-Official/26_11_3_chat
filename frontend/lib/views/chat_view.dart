@@ -13,6 +13,9 @@ import '../widgets/call_modal.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/network_status_banner.dart';
+import '../widgets/camera_capture_dialog.dart';
+import '../widgets/group_icon_picker_modal.dart';
+import '../services/permission_service.dart';
 import 'games/chess_game_view.dart';
 import 'games/ludo_game_view.dart';
 import 'games/snakes_ladders_view.dart';
@@ -71,13 +74,24 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
   RecordedAudio? _pendingVoiceAudio;
   bool _isPreviewPlaying = false;
   Duration _previewPosition = Duration.zero;
-  Duration _previewDuration = Duration.zero;
   bool _isSendingVoice = false;
+
+  // Independent UI session draft cache per conversation
+  static final Map<String, String> _conversationDrafts = {};
+
+  void _onDraftChanged() {
+    _conversationDrafts[widget.conversation.id] = _textController.text;
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final savedDraft = _conversationDrafts[widget.conversation.id];
+    if (savedDraft != null && savedDraft.isNotEmpty) {
+      _textController.text = savedDraft;
+    }
+    _textController.addListener(_onDraftChanged);
     _loadMessages();
     _startPolling();
   }
@@ -93,6 +107,8 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
   void didUpdateWidget(covariant ChatView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.conversation.id != widget.conversation.id) {
+      _conversationDrafts[oldWidget.conversation.id] = _textController.text;
+      _textController.text = _conversationDrafts[widget.conversation.id] ?? '';
       _loadMessages();
       _startPolling();
       _activeGame = null;
@@ -105,6 +121,7 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _textController.removeListener(_onDraftChanged);
     _pollingTimer?.cancel();
     _recordingTimer?.cancel();
     VoiceRecorderService.stopAudio();
@@ -378,7 +395,28 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
     );
   }
 
+  void _capturePhotoWithCamera() async {
+    final result = await CameraCaptureHelper.captureWithCamera(
+      context,
+      onFallbackGallery: _pickImageFromDevice,
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _pendingImageBytes = result.bytes;
+        _pendingImageName = result.filename;
+        _pendingImageSize = result.bytes.length;
+      });
+    }
+  }
+
   void _pickImageFromDevice() async {
+    final hasPerm = await PermissionService.requestPermission(
+      context,
+      AppPermissionType.photos,
+      showRationale: true,
+    );
+    if (!hasPerm) return;
+
     try {
       final file = await FilePicker.pickFile(
         type: FileType.image,
@@ -396,6 +434,7 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
       debugPrint('Error picking file: $e');
     }
   }
+
 
   void _discardPendingImage() {
     setState(() {
@@ -543,7 +582,6 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
           if (mounted) {
             setState(() {
               _previewPosition = pos;
-              if (dur.inMilliseconds > 0) _previewDuration = dur;
             });
           }
         },
@@ -557,7 +595,6 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
       _pendingVoiceAudio = null;
       _isPreviewPlaying = false;
       _previewPosition = Duration.zero;
-      _previewDuration = Duration.zero;
     });
   }
 
@@ -1940,10 +1977,17 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
+          // Camera Photo Capture Button
+          IconButton(
+            icon: const Icon(Icons.photo_camera_outlined, color: Color(0xFF06B6D4)),
+            tooltip: 'Capture Photo with Camera',
+            onPressed: _capturePhotoWithCamera,
+          ),
+
           // Device Image Picker Button (No auto-upload)
           IconButton(
             icon: const Icon(Icons.image_outlined, color: Color(0xFF38BDF8)),
-            tooltip: 'Choose Image from Device',
+            tooltip: 'Choose Image from Gallery',
             onPressed: _pickImageFromDevice,
           ),
 
@@ -1960,18 +2004,23 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
             tooltip: 'Attach Media from Device',
             color: const Color(0xFF1E293B),
             onSelected: (val) {
+              if (val == 'CAPTURE_CAMERA') _capturePhotoWithCamera();
               if (val == 'PICK_DOC') _pickDocumentFromDevice();
               if (val == 'PICK_IMAGE') _pickImageFromDevice();
               if (val == 'PICK_AUDIO') _pickAudioFileFromDevice();
             },
             itemBuilder: (ctx) => [
               const PopupMenuItem(
+                value: 'CAPTURE_CAMERA',
+                child: Row(children: [Icon(Icons.photo_camera, color: Color(0xFF06B6D4), size: 18), SizedBox(width: 8), Text('Capture with Camera', style: TextStyle(color: Colors.white))]),
+              ),
+              const PopupMenuItem(
                 value: 'PICK_DOC',
                 child: Row(children: [Icon(Icons.description, color: Color(0xFF8B5CF6), size: 18), SizedBox(width: 8), Text('Attach Document / File', style: TextStyle(color: Colors.white))]),
               ),
               const PopupMenuItem(
                 value: 'PICK_IMAGE',
-                child: Row(children: [Icon(Icons.photo_library, color: Color(0xFF38BDF8), size: 18), SizedBox(width: 8), Text('Choose Image from Device', style: TextStyle(color: Colors.white))]),
+                child: Row(children: [Icon(Icons.photo_library, color: Color(0xFF38BDF8), size: 18), SizedBox(width: 8), Text('Choose Image from Gallery', style: TextStyle(color: Colors.white))]),
               ),
               const PopupMenuItem(
                 value: 'PICK_AUDIO',
@@ -2297,11 +2346,30 @@ class _GroupInfoDialogState extends State<_GroupInfoDialog> {
   bool _isSearching = false;
   String? _statusMessage;
   bool _isStatusError = false;
+  String? _currentAvatarUrl;
 
   @override
   void initState() {
     super.initState();
+    _currentAvatarUrl = widget.conversation.avatarUrl;
     _loadMembers();
+  }
+
+  void _customizeGroupIcon() async {
+    final chosen = await GroupIconPickerModal.show(
+      context,
+      currentIcon: _currentAvatarUrl ?? ApiService.currentGroupIcon,
+      title: 'Customize Group Icon',
+    );
+    if (chosen != null && mounted) {
+      setState(() => _currentAvatarUrl = chosen);
+      try {
+        await ApiService.updateGroupInfo(widget.conversation.id, avatarUrl: chosen);
+        widget.onGroupUpdated();
+      } catch (e) {
+        debugPrint('Error updating group icon: $e');
+      }
+    }
   }
 
   @override
@@ -2459,7 +2527,6 @@ class _GroupInfoDialogState extends State<_GroupInfoDialog> {
   Widget build(BuildContext context) {
     final me = ApiService.currentUser;
     final isMeAdmin = widget.conversation.isAdmin(me.id);
-    final theme = Theme.of(context);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -2488,15 +2555,33 @@ class _GroupInfoDialogState extends State<_GroupInfoDialog> {
               padding: const EdgeInsets.fromLTRB(20, 20, 16, 12),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: const Color(0xFF8B5CF6).withOpacity(0.2),
-                    backgroundImage: (widget.conversation.avatarUrl != null && widget.conversation.avatarUrl!.isNotEmpty)
-                        ? NetworkImage(widget.conversation.avatarUrl!)
-                        : null,
-                    child: (widget.conversation.avatarUrl == null || widget.conversation.avatarUrl!.isEmpty)
-                        ? const Icon(Icons.group, color: Color(0xFF8B5CF6), size: 28)
-                        : null,
+                  InkWell(
+                    onTap: isMeAdmin ? _customizeGroupIcon : null,
+                    borderRadius: BorderRadius.circular(28),
+                    child: Stack(
+                      children: [
+                        AvatarBadge(
+                          avatarUrl: _currentAvatarUrl,
+                          name: widget.conversation.title,
+                          radius: 28,
+                          isGroup: true,
+                        ),
+                        if (isMeAdmin)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF06B6D4),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFF0F172A), width: 1.5),
+                              ),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 12),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -2518,9 +2603,28 @@ class _GroupInfoDialogState extends State<_GroupInfoDialog> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        if (isMeAdmin)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: InkWell(
+                              onTap: _customizeGroupIcon,
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.palette_outlined, size: 13, color: Color(0xFF06B6D4)),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Change Group Icon',
+                                    style: TextStyle(color: Color(0xFF06B6D4), fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
+
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white54, size: 20),
                     onPressed: () => Navigator.pop(context),

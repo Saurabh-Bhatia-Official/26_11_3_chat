@@ -8,6 +8,7 @@ import '../widgets/avatar_badge.dart';
 import '../widgets/call_modal.dart';
 import '../widgets/network_status_banner.dart';
 import '../widgets/software_logo_widget.dart';
+import '../widgets/group_icon_picker_modal.dart';
 import 'chat_view.dart';
 import 'identity_settings_view.dart';
 import 'safety_guardian_view.dart';
@@ -415,16 +416,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMainContent(ThemeData theme, bool isWide) {
-    switch (_currentTab) {
-      case MainNavigationTab.safetyGuardian:
-        return const SafetyGuardianView();
-      case MainNavigationTab.identity:
-        return IdentitySettingsView(
-          currentThemeMode: widget.currentThemeMode,
-          onThemeChanged: widget.onThemeChanged,
-        );
-      case MainNavigationTab.chats:
-        return Row(
+    return IndexedStack(
+      index: _currentTab.index,
+      children: [
+        // Tab 0: Chats
+        Row(
           children: [
             // Conversation List Sidebar
             Container(
@@ -486,9 +482,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
             ),
           ],
-        );
-    }
+        ),
+
+        // Tab 1: Safety Guardian
+        const SafetyGuardianView(),
+
+        // Tab 2: Appearance & Identity Settings
+        IdentitySettingsView(
+          currentThemeMode: widget.currentThemeMode,
+          onThemeChanged: widget.onThemeChanged,
+        ),
+      ],
+    );
   }
+
 
   Widget _buildConversationListPane() {
     final me = ApiService.currentUser;
@@ -1052,6 +1059,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
   final TextEditingController _descController = TextEditingController();
   final TextEditingController _avatarController = TextEditingController();
   final TextEditingController _userSearchController = TextEditingController();
+  String _selectedGroupIcon = ApiService.currentGroupIcon;
 
   final List<UserModel> _selectedMembers = [];
   List<UserModel> _searchUsersResult = [];
@@ -1065,6 +1073,20 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
     _avatarController.dispose();
     _userSearchController.dispose();
     super.dispose();
+  }
+
+  void _openGroupIconPicker() async {
+    final chosen = await GroupIconPickerModal.show(
+      context,
+      currentIcon: _selectedGroupIcon,
+      title: 'Customize New Group Icon',
+    );
+    if (chosen != null && mounted) {
+      setState(() {
+        _selectedGroupIcon = chosen;
+        _avatarController.text = chosen;
+      });
+    }
   }
 
   void _searchMembers(String query) async {
@@ -1092,7 +1114,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
       final group = await ApiService.createGroup(
         title: title,
         description: _descController.text.trim().isNotEmpty ? _descController.text.trim() : null,
-        avatarUrl: _avatarController.text.trim().isNotEmpty ? _avatarController.text.trim() : null,
+        avatarUrl: _selectedGroupIcon.trim().isNotEmpty ? _selectedGroupIcon.trim() : null,
         memberIds: _selectedMembers.map((u) => u.id).toList(),
       );
       if (mounted) {
@@ -1123,11 +1145,57 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
       ),
       content: SizedBox(
         width: 420,
-        height: 480,
+        height: 520,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Group Icon Customization
+              Center(
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        AvatarBadge(
+                          avatarUrl: _selectedGroupIcon,
+                          name: _titleController.text.trim().isNotEmpty ? _titleController.text : 'Group',
+                          radius: 36,
+                          isGroup: true,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: InkWell(
+                            onTap: _openGroupIconPicker,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF06B6D4),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFF131D2E), width: 2),
+                              ),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF06B6D4),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.palette_outlined, size: 14),
+                      label: const Text('Customize Group Icon', style: TextStyle(fontSize: 12)),
+                      onPressed: _openGroupIconPicker,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
               // Group Name
               const Text('Group Name *', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),

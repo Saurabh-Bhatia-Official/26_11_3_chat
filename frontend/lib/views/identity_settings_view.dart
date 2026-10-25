@@ -6,6 +6,12 @@ import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_container.dart';
 import '../widgets/software_logo_widget.dart';
+import '../widgets/avatar_badge.dart';
+import '../widgets/camera_capture_dialog.dart';
+import '../widgets/group_icon_picker_modal.dart';
+import '../services/group_icon_helper.dart';
+import '../services/permission_service.dart';
+import 'package:image_picker/image_picker.dart';
 
 class IdentitySettingsView extends StatefulWidget {
   final AppThemeMode currentThemeMode;
@@ -319,6 +325,72 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
       );
     }
   }
+
+  void _captureGroupIconCamera() async {
+    final result = await CameraCaptureHelper.captureWithCamera(
+      context,
+      onFallbackGallery: _pickGroupIconGallery,
+    );
+    if (result != null && mounted) {
+      await ApiService.setPersistentGroupIcon(result.dataUri);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Camera photo saved permanently as default group icon!'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+    }
+  }
+
+  void _pickGroupIconGallery() async {
+    final hasPerm = await PermissionService.requestPermission(
+      context,
+      AppPermissionType.photos,
+      showRationale: true,
+    );
+    if (!hasPerm) return;
+
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        if (bytes.isNotEmpty) {
+          final mime = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+          final dataUri = 'data:$mime;base64,${base64Encode(bytes)}';
+          await ApiService.setPersistentGroupIcon(dataUri);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Gallery image saved permanently as default group icon!'),
+                backgroundColor: Color(0xFF10B981),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking group icon from gallery: $e');
+    }
+  }
+
+  void _openGroupIconModal() async {
+    await GroupIconPickerModal.show(
+      context,
+      currentIcon: ApiService.currentGroupIcon,
+      title: 'Group Icon Customization',
+      onIconSelected: (newIcon) async {
+        await ApiService.setPersistentGroupIcon(newIcon);
+      },
+    );
+  }
+
 
   void _saveSoftwareName() async {
     final newName = _softwareNameController.text.trim();
@@ -802,6 +874,227 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
             ),
           ),
           const SizedBox(height: 24),
+
+          // Group Icon Customization (Settings)
+          GlassContainer(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.groups_outlined, color: Color(0xFF10B981), size: 24),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Group Icon Customization',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+                      ),
+                      child: const Text(
+                        'Persistent Setting',
+                        style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Customize the default group icon across the software. Choose between capturing a photo with your camera, selecting an existing image from your device gallery, or picking an available preset icon. Changes are saved permanently and restored automatically on startup.',
+                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+                const SizedBox(height: 18),
+
+                // Active Group Icon Display Card
+                ValueListenableBuilder<String>(
+                  valueListenable: ApiService.currentGroupIconNotifier,
+                  builder: (context, activeGroupIcon, _) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.03),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          AvatarBadge(
+                            avatarUrl: activeGroupIcon,
+                            name: 'Group',
+                            radius: 32,
+                            isGroup: true,
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      GroupIconHelper.isPreset(activeGroupIcon)
+                                          ? GroupIconHelper.getPreset(activeGroupIcon).name
+                                          : 'Custom Image Icon',
+                                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'ACTIVE',
+                                        style: TextStyle(color: Color(0xFF10B981), fontSize: 9.5, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  GroupIconHelper.isPreset(activeGroupIcon)
+                                      ? GroupIconHelper.getPreset(activeGroupIcon).description
+                                      : 'Custom gallery or camera photo saved permanently in device storage.',
+                                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF06B6D4),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      icon: const Icon(Icons.photo_camera, size: 16),
+                                      label: const Text('Capture with Camera', style: TextStyle(fontSize: 12)),
+                                      onPressed: _captureGroupIconCamera,
+                                    ),
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF10B981),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      icon: const Icon(Icons.photo_library, size: 16),
+                                      label: const Text('Choose from Gallery', style: TextStyle(fontSize: 12)),
+                                      onPressed: _pickGroupIconGallery,
+                                    ),
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.white70,
+                                        side: const BorderSide(color: Colors.white24),
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      icon: const Icon(Icons.palette_outlined, size: 16),
+                                      label: const Text('All Options / Presets', style: TextStyle(fontSize: 12)),
+                                      onPressed: _openGroupIconModal,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 18),
+
+                // Quick Select Available Preset Icons
+                const Text(
+                  'Select an Available Preset Group Icon:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                ValueListenableBuilder<String>(
+                  valueListenable: ApiService.currentGroupIconNotifier,
+                  builder: (context, activeGroupIcon, _) {
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: GroupIconHelper.presets.map((preset) {
+                        final isSelected = activeGroupIcon == preset.preferenceKey ||
+                            activeGroupIcon == preset.id ||
+                            activeGroupIcon.endsWith(preset.id);
+
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () async {
+                            await ApiService.setPersistentGroupIcon(preset.preferenceKey);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  duration: const Duration(milliseconds: 1500),
+                                  backgroundColor: preset.primaryColor,
+                                  content: Row(
+                                    children: [
+                                      Icon(preset.icon, color: Colors.white, size: 18),
+                                      const SizedBox(width: 8),
+                                      Text('Group icon updated to ${preset.name}!'),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          child: Container(
+                            width: 140,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: isSelected ? preset.primaryColor.withValues(alpha: 0.2) : Colors.black26,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected ? preset.primaryColor : Colors.white10,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: preset.primaryColor.withValues(alpha: 0.25),
+                                  child: Icon(preset.icon, color: preset.primaryColor, size: 20),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  preset.name,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
 
           // Complete Profile & Identity Settings (Edit Everything)
           GlassContainer(
