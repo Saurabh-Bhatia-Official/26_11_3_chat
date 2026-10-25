@@ -64,14 +64,14 @@ class PermissionService {
     ),
     AppPermissionType.photos: PermissionMetadata(
       type: AppPermissionType.photos,
-      title: 'Gallery & Storage Permission',
-      description: 'Select existing photos from device gallery for group icons and chats.',
+      title: 'Photos, Gallery & Storage',
+      description: 'Access photos and device storage to upload profile pictures, set group icons, and share media.',
       rationale:
-          'Whisper requires access to your device gallery so you can choose custom images for group icon customization, profile avatars, and media sharing.',
+          'Whisper requires access to your device photos and storage so you can upload profile pictures, customize group icons, and share images seamlessly.',
       deniedMessage:
-          'Gallery access was denied. You can select one of the built-in preset group icons instead.',
+          'Storage and photo access was denied. You can still set your profile picture by entering an image URL, or pick from available preset icons.',
       permanentlyDeniedMessage:
-          'Gallery and storage access is permanently denied. To pick custom images, please grant storage permission in App Settings.',
+          'Photos and storage access is permanently denied in system settings. To upload profile pictures or pick images from your gallery, please grant permission in App Settings.',
       icon: Icons.photo_library_rounded,
       accentColor: Color(0xFF10B981),
     ),
@@ -113,6 +113,22 @@ class PermissionService {
     if (kIsWeb) {
       // On web, permissions are requested just-in-time by browser APIs
       return PermissionStatus.granted;
+    }
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && type == AppPermissionType.photos) {
+      try {
+        final photos = await Permission.photos.status;
+        if (photos.isGranted || photos.isLimited) return photos;
+        final storage = await Permission.storage.status;
+        if (storage.isGranted) return storage;
+        // Only permanently denied if both photos and storage are permanently denied
+        if (photos.isPermanentlyDenied && storage.isPermanentlyDenied) {
+          return PermissionStatus.permanentlyDenied;
+        }
+        return PermissionStatus.denied;
+      } catch (_) {
+        return PermissionStatus.granted;
+      }
     }
 
     final perm = _getPlatformPermission(type);
@@ -159,7 +175,7 @@ class PermissionService {
     }
 
     final currentStatus = await checkPermission(type);
-    if (currentStatus.isGranted) {
+    if (currentStatus.isGranted || currentStatus.isLimited) {
       return true;
     }
 
@@ -178,32 +194,55 @@ class PermissionService {
     }
 
     // Step 2: Request permission from platform
-    final perm = _getPlatformPermission(type);
-    if (perm == null) return true;
-
-    PermissionStatus newStatus;
     try {
-      newStatus = await perm.request();
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && type == AppPermissionType.photos) {
+        // On Android 13+ (API 33+), request Permission.photos (READ_MEDIA_IMAGES)
+        final photoStatus = await Permission.photos.request();
+        if (photoStatus.isGranted || photoStatus.isLimited) {
+          return true;
+        }
+        // Fallback to storage permission for Android <= 12 (READ_EXTERNAL_STORAGE)
+        final storageStatus = await Permission.storage.request();
+        if (storageStatus.isGranted) {
+          return true;
+        }
+
+        // Only mark permanently denied if both are permanently denied
+        if (photoStatus.isPermanentlyDenied && storageStatus.isPermanentlyDenied) {
+          if (context.mounted) {
+            await showPermanentlyDeniedDialog(context, type);
+          }
+          return false;
+        }
+
+        if (context.mounted) {
+          await showDeniedDialog(context, type);
+        }
+        return false;
+      } else {
+        final perm = _getPlatformPermission(type);
+        if (perm == null) return true;
+        final newStatus = await perm.request();
+
+        if (newStatus.isGranted || newStatus.isLimited) {
+          return true;
+        }
+
+        if (newStatus.isPermanentlyDenied) {
+          if (context.mounted) {
+            await showPermanentlyDeniedDialog(context, type);
+          }
+          return false;
+        }
+
+        if (context.mounted) {
+          await showDeniedDialog(context, type);
+        }
+        return false;
+      }
     } catch (e) {
       debugPrint('Permission request error: $e');
-      newStatus = PermissionStatus.denied;
-    }
-
-    // Step 3: Handle results properly
-    if (newStatus.isGranted || newStatus.isLimited) {
-      return true;
-    }
-
-    if (newStatus.isPermanentlyDenied) {
-      if (context.mounted) {
-        await showPermanentlyDeniedDialog(context, type);
-      }
       return false;
-    }
-
-    // Denied
-    if (context.mounted) {
-      await showDeniedDialog(context, type);
     }
     return false;
   }

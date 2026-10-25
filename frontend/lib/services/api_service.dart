@@ -1208,6 +1208,11 @@ class ApiService {
     }
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyUser, jsonEncode(updated.toJson()));
+    } catch (_) {}
+
+    try {
       final res = await http.put(
         Uri.parse('$baseUrl/auth/profile/${me.id}'),
         headers: authHeaders,
@@ -1224,17 +1229,27 @@ class ApiService {
           if (softwareName != null) 'softwareName': softwareName,
           if (customLogoUrl != null) 'customLogoUrl': customLogoUrl,
           if (isPrivate != null) 'isPrivate': isPrivate,
+          if (isPrivate != null) 'private': isPrivate,
         }),
       ).timeout(const Duration(seconds: 4));
 
       if (res.statusCode == 200) {
         final serverUser = UserModel.fromJson(jsonDecode(res.body));
         currentUser = serverUser;
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_keyUser, jsonEncode(serverUser.toJson()));
+        } catch (_) {}
         return serverUser;
       }
     } catch (_) {}
 
     return updated;
+  }
+
+  /// Immediately converts the user account privacy mode (public or private) and persists it
+  static Future<UserModel> setPrivacyMode(bool isPrivate) async {
+    return await updateProfile(isPrivate: isPrivate);
   }
 
   // ==========================================

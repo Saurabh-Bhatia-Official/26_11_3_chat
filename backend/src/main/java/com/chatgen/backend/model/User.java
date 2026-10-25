@@ -104,7 +104,10 @@ public class User {
 
     private Boolean isPrivate = false;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("isPrivate")
     public Boolean getIsPrivate() { return isPrivate != null ? isPrivate : false; }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("isPrivate")
     public void setIsPrivate(Boolean isPrivate) { this.isPrivate = isPrivate; }
 
     public Instant getLastSeen() { return lastSeen; }

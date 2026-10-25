@@ -50,7 +50,13 @@ class UserModel {
       safetyScore: json['safetyScore'] ?? 100,
       isVerified: json['isVerified'] ?? false,
       isOnline: json['isOnline'] ?? true,
-      isPrivate: json['isPrivate'] ?? json['private'] ?? false,
+      isPrivate: json['isPrivate'] == true ||
+          json['private'] == true ||
+          json['is_private'] == true ||
+          json['isPrivate']?.toString() == 'true' ||
+          json['private']?.toString() == 'true' ||
+          json['is_private']?.toString() == '1' ||
+          json['isPrivate'] == 1,
       appIconPreference: json['appIconPreference'] ?? 'cyber_pulse',
       themePreference: json['themePreference'] ?? 'obsidianCyber',
       softwareName: json['softwareName'],
@@ -71,6 +77,7 @@ class UserModel {
     'isVerified': isVerified,
     'isOnline': isOnline,
     'isPrivate': isPrivate,
+    'private': isPrivate,
     'appIconPreference': appIconPreference,
     'themePreference': themePreference,
     'softwareName': softwareName,

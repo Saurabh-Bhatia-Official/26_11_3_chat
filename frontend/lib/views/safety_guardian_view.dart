@@ -196,7 +196,7 @@ class _SafetyGuardianViewState extends State<SafetyGuardianView> {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            '• Multi-factor authentication active\n• 0 unacknowledged critical alerts\n• Cloudinary signed uploads enabled',
+                            '• Multi-factor authentication active\n• 0 unacknowledged critical alerts\n• Secure signed uploads enabled',
                             style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
                           ),
                         ],

@@ -445,6 +445,13 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
   }
 
   void _pickDocumentFromDevice() async {
+    final hasPerm = await PermissionService.requestPermission(
+      context,
+      AppPermissionType.photos,
+      showRationale: true,
+    );
+    if (!hasPerm) return;
+
     try {
       final file = await FilePicker.pickFile(
         type: FileType.any,
@@ -599,6 +606,13 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
   }
 
   void _pickAudioFileFromDevice() async {
+    final hasPerm = await PermissionService.requestPermission(
+      context,
+      AppPermissionType.photos,
+      showRationale: true,
+    );
+    if (!hasPerm) return;
+
     try {
       final file = await FilePicker.pickFile(
         type: FileType.custom,
@@ -1259,7 +1273,7 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
           // Game Launcher Action: Open Cloud Game Chooser Dialog
           IconButton(
             icon: const Icon(Icons.sports_esports, color: Color(0xFF8B5CF6)),
-            tooltip: 'PlayTogether Cloud Games',
+            tooltip: 'PlayTogether Games',
             onPressed: _showPlayTogetherChooserDialog,
           ),
 
@@ -1350,7 +1364,7 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
                 const Icon(Icons.sports_esports, color: Color(0xFF8B5CF6), size: 22),
                 const SizedBox(width: 8),
                 const Text(
-                  'PlayTogether Cloud Games 🎮',
+                  'PlayTogether Games 🎮',
                   style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),

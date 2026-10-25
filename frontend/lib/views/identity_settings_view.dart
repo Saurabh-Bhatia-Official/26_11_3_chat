@@ -123,13 +123,219 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     return null;
   }
 
-  void _pickAvatarFromDevice() async {
+  void _pickAvatarFromDevice() {
+    _showAvatarSourcePicker();
+  }
+
+  void _showAvatarSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.35), width: 1.5),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20, offset: const Offset(0, -4)),
+          ],
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF06B6D4).withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.account_circle_outlined, color: Color(0xFF06B6D4), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Update Profile Picture',
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _buildAvatarOptionTile(
+                icon: Icons.camera_alt_rounded,
+                title: 'Take Photo with Camera',
+                subtitle: 'Capture a fresh photo using your device camera with live preview',
+                color: const Color(0xFF06B6D4),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickAvatarFromCamera();
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildAvatarOptionTile(
+                icon: Icons.photo_library_rounded,
+                title: 'Choose from Gallery',
+                subtitle: 'Pick existing photo from your gallery or photo album',
+                color: const Color(0xFF10B981),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickAvatarFromGallery();
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildAvatarOptionTile(
+                icon: Icons.folder_open_rounded,
+                title: 'Choose from File Storage',
+                subtitle: 'Browse device files for JPG, PNG, or WEBP images',
+                color: const Color(0xFF8B5CF6),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickAvatarFromFileStorage();
+                },
+              ),
+              const SizedBox(height: 10),
+              _buildAvatarOptionTile(
+                icon: Icons.link_rounded,
+                title: 'Enter Image URL',
+                subtitle: 'Provide a direct web link to an online image',
+                color: const Color(0xFFF59E0B),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _editAvatarUrlDirectly();
+                },
+              ),
+              if (_avatarUrlController.text.isNotEmpty || _pickedAvatarBytes != null) ...[
+                const SizedBox(height: 10),
+                _buildAvatarOptionTile(
+                  icon: Icons.delete_outline_rounded,
+                  title: 'Remove Profile Picture',
+                  subtitle: 'Reset avatar and display name initials instead',
+                  color: const Color(0xFFEF4444),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _removeAvatar();
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarOptionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white30, size: 13),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickAvatarFromCamera() async {
+    final result = await CameraCaptureHelper.captureWithCamera(
+      context,
+      onFallbackGallery: _pickAvatarFromGallery,
+    );
+    if (result != null && mounted) {
+      await _uploadAndApplyAvatar(result.bytes, result.filename);
+    }
+  }
+
+  void _pickAvatarFromGallery() async {
+    final hasPerm = await PermissionService.requestPermission(
+      context,
+      AppPermissionType.photos,
+      showRationale: true,
+    );
+    if (!hasPerm) return;
+
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        if (bytes.isNotEmpty && mounted) {
+          await _uploadAndApplyAvatar(bytes, picked.name);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking from gallery: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick photo from gallery: $e'), backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
+    }
+  }
+
+  void _pickAvatarFromFileStorage() async {
+    final hasPerm = await PermissionService.requestPermission(
+      context,
+      AppPermissionType.photos,
+      showRationale: true,
+    );
+    if (!hasPerm) return;
+
     try {
       final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
       );
-
       if (file == null) return;
 
       final extension = file.extension?.toLowerCase() ?? '';
@@ -146,59 +352,106 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
       }
 
       final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not read the selected image data.'),
-              backgroundColor: Color(0xFFEF4444),
-            ),
-          );
-        }
-        return;
-      }
-
-      setState(() {
-        _pickedAvatarBytes = bytes;
-        _pickedAvatarFilename = file.name;
-        _isUploadingAvatar = true;
-      });
-
-      // Upload and update user profile immediately
-      final uploadedUrl = await ApiService.uploadMedia(bytes, file.name);
-      if (uploadedUrl != null) {
-        _avatarUrlController.text = uploadedUrl;
-        await ApiService.updateProfile(avatarUrl: uploadedUrl);
-        if (mounted) {
-          setState(() => _isUploadingAvatar = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  Text('Avatar uploaded and updated successfully (${file.name})!'),
-                ],
-              ),
-              backgroundColor: const Color(0xFF10B981),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          setState(() => _isUploadingAvatar = false);
-        }
+      if (bytes.isNotEmpty && mounted) {
+        await _uploadAndApplyAvatar(bytes, file.name);
       }
     } catch (e) {
+      debugPrint('Error picking file: $e');
       if (mounted) {
-        setState(() => _isUploadingAvatar = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to pick or upload avatar: $e'),
+            content: Text('Failed to pick image file: $e'),
             backgroundColor: const Color(0xFFEF4444),
           ),
         );
       }
+    }
+  }
+
+  void _editAvatarUrlDirectly() {
+    final controller = TextEditingController(text: _avatarUrlController.text);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF131D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Enter Image URL', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'https://images.unsplash.com/...',
+                hintStyle: const TextStyle(color: Colors.white38),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF06B6D4), foregroundColor: Colors.white),
+            onPressed: () async {
+              final newUrl = controller.text.trim();
+              Navigator.of(ctx).pop();
+              if (newUrl.isNotEmpty) {
+                setState(() {
+                  _avatarUrlController.text = newUrl;
+                  _pickedAvatarBytes = null;
+                });
+                await ApiService.updateProfile(avatarUrl: newUrl);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _uploadAndApplyAvatar(Uint8List bytes, String filename) async {
+    setState(() {
+      _pickedAvatarBytes = bytes;
+      _pickedAvatarFilename = filename;
+      _isUploadingAvatar = true;
+    });
+
+    String? uploadedUrl;
+    try {
+      uploadedUrl = await ApiService.uploadMedia(bytes, filename);
+    } catch (e) {
+      debugPrint('Cloud media upload error, using local fallback data URI: $e');
+    }
+
+    final ext = filename.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+    final effectiveUrl = (uploadedUrl != null && uploadedUrl.isNotEmpty)
+        ? uploadedUrl
+        : 'data:image/$ext;base64,${base64Encode(bytes)}';
+
+    _avatarUrlController.text = effectiveUrl;
+    await ApiService.updateProfile(avatarUrl: effectiveUrl);
+
+    if (mounted) {
+      setState(() => _isUploadingAvatar = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Profile picture updated successfully ($filename)!'),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+        ),
+      );
     }
   }
 
@@ -244,6 +497,13 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
   }
 
   void _pickCustomSoftwareLogo() async {
+    final hasPerm = await PermissionService.requestPermission(
+      context,
+      AppPermissionType.photos,
+      showRationale: true,
+    );
+    if (!hasPerm) return;
+
     try {
       final file = await FilePicker.pickFile(
         type: FileType.custom,
@@ -289,10 +549,10 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.cloud_done, color: Colors.white, size: 20),
+                const Icon(Icons.check_circle, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('Software logo & system favicon updated & saved to cloud (${file.name})!'),
+                  child: Text('Software logo & system favicon updated (${file.name})!'),
                 ),
               ],
             ),
@@ -400,14 +660,40 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.cloud_done, color: Colors.white, size: 20),
+              const Icon(Icons.check_circle, color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Software name updated to "$newName" & saved to cloud!'),
+                child: Text('Software name updated to "$newName"!'),
               ),
             ],
           ),
           backgroundColor: const Color(0xFF10B981),
+        ),
+      );
+    }
+  }
+
+  void _setPrivacyMode(bool isPrivate) async {
+    setState(() => _isPrivate = isPrivate);
+    await ApiService.setPrivacyMode(isPrivate);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(milliseconds: 2000),
+          backgroundColor: isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981),
+          content: Row(
+            children: [
+              Icon(isPrivate ? Icons.lock : Icons.public, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isPrivate
+                      ? 'Account converted to Private Account! Confirmation required before other users can chat with you.'
+                      : 'Account converted to Public Account! Open direct messaging enabled.',
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -439,9 +725,9 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
         const SnackBar(
           content: Row(
             children: [
-              Icon(Icons.cloud_done, color: Colors.white, size: 20),
+              Icon(Icons.check_circle, color: Colors.white, size: 20),
               SizedBox(width: 8),
-              Expanded(child: Text('Profile, branding, and theme saved to cloud successfully!')),
+              Expanded(child: Text('Profile, branding, and theme saved successfully!')),
             ],
           ),
           backgroundColor: Color(0xFF10B981),
@@ -493,35 +779,19 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Color Theme & Appearance',
                         style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.4)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.cloud_done, size: 12, color: Color(0xFF10B981)),
-                          SizedBox(width: 4),
-                          Text('Cloud Stored', style: TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold)),
-                        ],
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Select from curated, high-contrast, accessible palettes (persisted in cloud database):',
+                  'Select from curated, high-contrast, accessible palettes:',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
@@ -582,34 +852,18 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          const Row(
                             children: [
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Software Branding & System Logo',
                                   style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF06B6D4).withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFF06B6D4).withOpacity(0.4)),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.cloud_done, size: 12, color: Color(0xFF06B6D4)),
-                                    SizedBox(width: 4),
-                                    Text('Cloud Synced', style: TextStyle(color: Color(0xFF06B6D4), fontSize: 10, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
                             ],
                           ),
                           const Text(
-                            'Customize software name, app logo, and favicon (saved to cloud database)',
+                            'Customize software name, app logo, and favicon',
                             style: TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],
@@ -1464,23 +1718,37 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                             style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
                           const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: (_isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981)).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: (_isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981)).withOpacity(0.4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: (_isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981)).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: (_isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981)).withOpacity(0.4),
+                                  ),
+                                ),
+                                child: Text(
+                                  _isPrivate ? 'PRIVATE' : 'PUBLIC',
+                                  style: TextStyle(
+                                    color: _isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              _isPrivate ? 'PRIVATE' : 'PUBLIC',
-                              style: TextStyle(
-                                color: _isPrivate ? const Color(0xFFFBBF24) : const Color(0xFF10B981),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                              const SizedBox(width: 8),
+                              Switch(
+                                value: _isPrivate,
+                                activeColor: const Color(0xFFFBBF24),
+                                activeTrackColor: const Color(0xFFFBBF24).withOpacity(0.35),
+                                inactiveThumbColor: const Color(0xFF10B981),
+                                inactiveTrackColor: const Color(0xFF10B981).withOpacity(0.35),
+                                onChanged: (val) => _setPrivacyMode(val),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -1497,26 +1765,37 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                           Expanded(
                             child: InkWell(
                               borderRadius: BorderRadius.circular(10),
-                              onTap: () => setState(() => _isPrivate = false),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: !_isPrivate ? const Color(0xFF10B981).withOpacity(0.15) : Colors.black12,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: !_isPrivate ? const Color(0xFF10B981) : Colors.white10,
-                                    width: !_isPrivate ? 2 : 1,
+                              onTap: () => _setPrivacyMode(false),
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: !_isPrivate ? const Color(0xFF10B981).withOpacity(0.15) : Colors.black12,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: !_isPrivate ? const Color(0xFF10B981) : Colors.white10,
+                                        width: !_isPrivate ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: const Column(
+                                      children: [
+                                        Icon(Icons.public, color: Color(0xFF10B981), size: 22),
+                                        SizedBox(height: 6),
+                                        Text('Public Account', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        SizedBox(height: 2),
+                                        Text('Open Messaging', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                child: const Column(
-                                  children: [
-                                    Icon(Icons.public, color: Color(0xFF10B981), size: 22),
-                                    SizedBox(height: 6),
-                                    Text('Public Account', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                    SizedBox(height: 2),
-                                    Text('Open Messaging', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                  ],
-                                ),
+                                  if (!_isPrivate)
+                                    const Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: Icon(Icons.check_circle, color: Color(0xFF10B981), size: 16),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -1524,26 +1803,37 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                           Expanded(
                             child: InkWell(
                               borderRadius: BorderRadius.circular(10),
-                              onTap: () => setState(() => _isPrivate = true),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: _isPrivate ? const Color(0xFFFBBF24).withOpacity(0.15) : Colors.black12,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: _isPrivate ? const Color(0xFFFBBF24) : Colors.white10,
-                                    width: _isPrivate ? 2 : 1,
+                              onTap: () => _setPrivacyMode(true),
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: _isPrivate ? const Color(0xFFFBBF24).withOpacity(0.15) : Colors.black12,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: _isPrivate ? const Color(0xFFFBBF24) : Colors.white10,
+                                        width: _isPrivate ? 2 : 1,
+                                      ),
+                                    ),
+                                    child: const Column(
+                                      children: [
+                                        Icon(Icons.lock, color: Color(0xFFFBBF24), size: 22),
+                                        SizedBox(height: 6),
+                                        Text('Private Account', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        SizedBox(height: 2),
+                                        Text('Confirm First', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                child: const Column(
-                                  children: [
-                                    Icon(Icons.lock, color: Color(0xFFFBBF24), size: 22),
-                                    SizedBox(height: 6),
-                                    Text('Private Account', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                    SizedBox(height: 2),
-                                    Text('Confirm First', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                  ],
-                                ),
+                                  if (_isPrivate)
+                                    const Positioned(
+                                      top: 6,
+                                      right: 6,
+                                      child: Icon(Icons.check_circle, color: Color(0xFFFBBF24), size: 16),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
@@ -1601,9 +1891,9 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
               backgroundColor: primary,
               content: Row(
                 children: [
-                  const Icon(Icons.cloud_done, color: Colors.white, size: 20),
+                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
-                  Text('$title theme active & stored in cloud!'),
+                  Text('$title theme active!'),
                 ],
               ),
             ),

@@ -11,6 +11,7 @@ import 'package:frontend/views/home_screen.dart';
 import 'package:frontend/widgets/avatar_badge.dart';
 import 'package:frontend/widgets/camera_capture_dialog.dart';
 import 'package:frontend/widgets/group_icon_picker_modal.dart';
+import 'package:frontend/views/identity_settings_view.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -502,6 +503,205 @@ void main() {
       expect(avatarFinder, findsOneWidget);
       final CircleAvatar circleAvatar = tester.widget(avatarFinder);
       expect(circleAvatar.backgroundImage, isA<MemoryImage>());
+    });
+  });
+
+  group('Requirement 7: Profile Picture Avatar Permission & Multi-Source Flow', () {
+    testWidgets('IdentitySettingsView shows avatar options bottom sheet with all sources', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1000);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IdentitySettingsView(
+              currentThemeMode: AppThemeMode.obsidianCyber,
+              onThemeChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find and tap the upload avatar button or camera badge
+      final uploadBtn = find.byIcon(Icons.file_upload_outlined).last;
+      expect(uploadBtn, findsOneWidget);
+      await tester.ensureVisible(uploadBtn);
+      await tester.tap(uploadBtn);
+      await tester.pumpAndSettle();
+
+      // Verify bottom sheet title and options
+      expect(find.text('Update Profile Picture'), findsOneWidget);
+      expect(find.text('Take Photo with Camera'), findsOneWidget);
+      expect(find.text('Choose from Gallery'), findsNWidgets(2));
+      expect(find.text('Choose from File Storage'), findsOneWidget);
+      expect(find.text('Enter Image URL'), findsOneWidget);
+    });
+
+    testWidgets('Profile avatar update via Camera works and saves persistently', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1000);
+      tester.view.devicePixelRatio = 1.0;
+
+      // Mock permissions as granted
+      PermissionService.mockStatus = {
+        AppPermissionType.camera: PermissionStatus.granted,
+        AppPermissionType.photos: PermissionStatus.granted,
+      };
+
+      final dummyBytes = base64Decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+      CameraCaptureHelper.mockCapture = () async {
+        return CameraCaptureResult(
+          bytes: dummyBytes,
+          filename: 'new_profile_avatar.png',
+          dataUri: 'data:image/png;base64,${base64Encode(dummyBytes)}',
+        );
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IdentitySettingsView(
+              currentThemeMode: AppThemeMode.obsidianCyber,
+              onThemeChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap Upload Profile Picture
+      final uploadBtn = find.byIcon(Icons.file_upload_outlined).last;
+      await tester.ensureVisible(uploadBtn);
+      await tester.tap(uploadBtn);
+      await tester.pumpAndSettle();
+
+      // Tap Take Photo with Camera
+      await tester.tap(find.text('Take Photo with Camera'));
+      await tester.pumpAndSettle();
+
+      // Avatar should be updated in currentUser
+      expect(ApiService.currentUser.avatarUrl, isNotNull);
+      expect(ApiService.currentUser.avatarUrl!.startsWith('data:image/png;base64,'), isTrue);
+
+      NetworkService.dispose();
+    });
+
+    testWidgets('Direct Image URL entry updates profile avatar', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1000);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IdentitySettingsView(
+              currentThemeMode: AppThemeMode.obsidianCyber,
+              onThemeChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap Upload Profile Picture
+      final uploadBtn = find.byIcon(Icons.file_upload_outlined).last;
+      await tester.ensureVisible(uploadBtn);
+      await tester.tap(uploadBtn);
+      await tester.pumpAndSettle();
+
+      // Tap Enter Image URL
+      await tester.tap(find.text('Enter Image URL'));
+      await tester.pumpAndSettle();
+
+      // Enter a valid direct image URL
+      final dummyUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+      final textField = find.byType(TextField).last;
+      await tester.enterText(textField, dummyUri);
+      await tester.pumpAndSettle();
+
+      // Tap Save in dialog
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      // Verify ApiService profile avatar updated
+      expect(ApiService.currentUser.avatarUrl, equals(dummyUri));
+
+      NetworkService.dispose();
+    });
+
+    testWidgets('Tapping Private Account immediately converts account to private and persists', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1000);
+      tester.view.devicePixelRatio = 1.0;
+
+      // Start with public account
+      ApiService.currentUser = UserModel(
+        id: 'u_test_priv',
+        username: 'alice_crypto',
+        displayName: 'Alice Crypto',
+        isPrivate: false,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IdentitySettingsView(
+              currentThemeMode: AppThemeMode.obsidianCyber,
+              onThemeChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find Private Account card and ensure visible
+      final privCard = find.text('Private Account');
+      expect(privCard, findsOneWidget);
+      await tester.ensureVisible(privCard);
+      await tester.tap(privCard);
+      await tester.pumpAndSettle();
+
+      // Verify currentUser converted to private immediately
+      expect(ApiService.currentUser.isPrivate, isTrue);
+
+      // Verify snackbar confirmed conversion
+      expect(find.textContaining('Account converted to Private Account'), findsOneWidget);
+
+      // Verify persistent storage saved isPrivate = true across session reload
+      final prefs = await SharedPreferences.getInstance();
+      final userJson = prefs.getString('saved_auth_user_json');
+      expect(userJson, isNotNull);
+      final decoded = jsonDecode(userJson!);
+      expect(decoded['isPrivate'], isTrue);
+
+      // Simulate app restart / initSession
+      await ApiService.initSession();
+      expect(ApiService.currentUser.isPrivate, isTrue);
+
+      NetworkService.dispose();
+    });
+
+    testWidgets('No Cloud Stored or Cloud Synced badges displayed in IdentitySettingsView', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1000);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IdentitySettingsView(
+              currentThemeMode: AppThemeMode.obsidianCyber,
+              onThemeChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify cloud badges are completely removed
+      expect(find.text('Cloud Stored'), findsNothing);
+      expect(find.text('Cloud Synced'), findsNothing);
+      expect(find.textContaining('persisted in cloud database'), findsNothing);
+      expect(find.textContaining('saved to cloud database'), findsNothing);
+
+      NetworkService.dispose();
     });
   });
 }
