@@ -132,29 +132,34 @@ jobs:
           cache: true
           cache-key: "flutter-ios-:os:-:channel:-:version:-:arch:-:hash:"
 
-      - name: 📦 Install Flutter Dependencies
+      - name: 📦 Install Flutter Dependencies & Preconfigure iOS
         run: |
           cd frontend
           flutter pub get
+          flutter build ios --config-only --no-codesign || true
           dart run tool/patch_webrtc.dart
 
-      - name: 🩹 Patch flutter_webrtc Headers for Darwin/SPM
+      - name: 🩹 Patch flutter_webrtc Darwin Headers & Implementation for Darwin/SPM
         run: |
           python3 -c "
-          import os, glob
+          import os
           roots = [os.path.expanduser('~/.pub-cache'), os.getcwd(), os.path.dirname(os.getcwd())]
+          exts = ('.h', '.m', '.mm', '.c', '.cpp', '.hpp')
           for root in roots:
               if not os.path.exists(root): continue
-              for p in glob.glob(root + '/**/*.h', recursive=True):
-                  if 'flutter_webrtc' in p:
-                      try:
-                          with open(p, 'r', encoding='utf-8') as f:
-                              c = f.read()
-                          if 'TARGET_OS_' in c and 'TargetConditionals.h' not in c:
-                              with open(p, 'w', encoding='utf-8') as f:
-                                  f.write('#import <TargetConditionals.h>\n' + c)
-                              print(f'Patched: {p}')
-                      except Exception: pass
+              for dirpath, _, filenames in os.walk(root):
+                  for fname in filenames:
+                      if not fname.endswith(exts): continue
+                      p = os.path.join(dirpath, fname)
+                      if 'flutter_webrtc' in p:
+                          try:
+                              with open(p, 'r', encoding='utf-8') as f:
+                                  c = f.read()
+                              if 'TARGET_OS_' in c and 'TargetConditionals.h' not in c:
+                                  with open(p, 'w', encoding='utf-8') as f:
+                                      f.write('#import <TargetConditionals.h>\n' + c)
+                                  print(f'Patched: {p}')
+                          except Exception: pass
           "
 
       - name: 🧪 Run Automated Tests
@@ -206,29 +211,34 @@ jobs:
       - name: ⚙️ Enable macOS Desktop Platform
         run: flutter config --enable-macos-desktop
 
-      - name: 📦 Install Flutter Dependencies
+      - name: 📦 Install Flutter Dependencies & Preconfigure macOS
         run: |
           cd frontend
           flutter pub get
+          flutter build macos --config-only || true
           dart run tool/patch_webrtc.dart
 
-      - name: 🩹 Patch flutter_webrtc Headers for Darwin/SPM
+      - name: 🩹 Patch flutter_webrtc Darwin Headers & Implementation for Darwin/SPM
         run: |
           python3 -c "
-          import os, glob
+          import os
           roots = [os.path.expanduser('~/.pub-cache'), os.getcwd(), os.path.dirname(os.getcwd())]
+          exts = ('.h', '.m', '.mm', '.c', '.cpp', '.hpp')
           for root in roots:
               if not os.path.exists(root): continue
-              for p in glob.glob(root + '/**/*.h', recursive=True):
-                  if 'flutter_webrtc' in p:
-                      try:
-                          with open(p, 'r', encoding='utf-8') as f:
-                              c = f.read()
-                          if 'TARGET_OS_' in c and 'TargetConditionals.h' not in c:
-                              with open(p, 'w', encoding='utf-8') as f:
-                                  f.write('#import <TargetConditionals.h>\n' + c)
-                              print(f'Patched: {p}')
-                      except Exception: pass
+              for dirpath, _, filenames in os.walk(root):
+                  for fname in filenames:
+                      if not fname.endswith(exts): continue
+                      p = os.path.join(dirpath, fname)
+                      if 'flutter_webrtc' in p:
+                          try:
+                              with open(p, 'r', encoding='utf-8') as f:
+                                  c = f.read()
+                              if 'TARGET_OS_' in c and 'TargetConditionals.h' not in c:
+                                  with open(p, 'w', encoding='utf-8') as f:
+                                      f.write('#import <TargetConditionals.h>\n' + c)
+                                  print(f'Patched: {p}')
+                          except Exception: pass
           "
 
       - name: 🔨 Build macOS Release

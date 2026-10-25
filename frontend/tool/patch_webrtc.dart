@@ -58,7 +58,13 @@ void main() {
         if (entity is! File) continue;
 
         final path = entity.path;
-        if (!path.endsWith('.h')) continue;
+        final hasSupportedExt = path.endsWith('.h') ||
+            path.endsWith('.m') ||
+            path.endsWith('.mm') ||
+            path.endsWith('.c') ||
+            path.endsWith('.cpp') ||
+            path.endsWith('.hpp');
+        if (!hasSupportedExt) continue;
         if (!path.contains('flutter_webrtc')) continue;
 
         if (processedPaths.contains(path)) continue;
