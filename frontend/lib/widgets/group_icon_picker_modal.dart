@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/file_picker_helper.dart';
 import '../services/group_icon_helper.dart';
 import '../services/permission_service.dart';
 import 'avatar_badge.dart';
@@ -90,23 +91,9 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
     }
 
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 88,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      );
-
-      if (picked != null) {
-        final bytes = await picked.readAsBytes();
-        if (bytes.isNotEmpty) {
-          final mime = picked.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-          final dataUri = 'data:$mime;base64,${base64Encode(bytes)}';
-          if (mounted) {
-            widget.onIconSelected(dataUri);
-          }
-        }
+      final picked = await FilePickerHelper.pickImage();
+      if (picked != null && picked.bytes.isNotEmpty && mounted) {
+        widget.onIconSelected(picked.dataUri);
       }
     } catch (e) {
       debugPrint('Error picking from gallery: $e');

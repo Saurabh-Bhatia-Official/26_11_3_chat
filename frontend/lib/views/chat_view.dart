@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../services/file_picker_helper.dart';
 import 'package:intl/intl.dart';
 import '../constants/game_assets.dart';
 import '../models/models.dart';
@@ -418,23 +420,23 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
     if (!hasPerm) return;
 
     try {
-      final file = await FilePicker.pickFile(
-        type: FileType.image,
-      );
-      if (file != null) {
-        final bytes = await file.readAsBytes();
-        final size = await file.length() ?? bytes.length;
+      final picked = await FilePickerHelper.pickImage();
+      if (picked != null && mounted) {
         setState(() {
-          _pendingImageBytes = bytes;
-          _pendingImageName = file.name;
-          _pendingImageSize = size;
+          _pendingImageBytes = picked.bytes;
+          _pendingImageName = picked.name;
+          _pendingImageSize = picked.size;
         });
       }
     } catch (e) {
-      debugPrint('Error picking file: $e');
+      debugPrint('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick image: $e'), backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
     }
   }
-
 
   void _discardPendingImage() {
     setState(() {
@@ -453,20 +455,21 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
     if (!hasPerm) return;
 
     try {
-      final file = await FilePicker.pickFile(
-        type: FileType.any,
-      );
-      if (file != null) {
-        final bytes = await file.readAsBytes();
-        final size = await file.length() ?? bytes.length;
+      final picked = await FilePickerHelper.pickDocument();
+      if (picked != null && mounted) {
         setState(() {
-          _pendingDocumentBytes = bytes;
-          _pendingDocumentName = file.name;
-          _pendingDocumentSize = size;
+          _pendingDocumentBytes = picked.bytes;
+          _pendingDocumentName = picked.name;
+          _pendingDocumentSize = picked.size;
         });
       }
     } catch (e) {
       debugPrint('Error picking document: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick document: $e'), backgroundColor: const Color(0xFFEF4444)),
+        );
+      }
     }
   }
 
@@ -614,27 +617,21 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
     if (!hasPerm) return;
 
     try {
-      final file = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: ['webm', 'wav', 'mp3', 'ogg', 'm4a'],
-      );
-      if (file != null) {
-        final bytes = await file.readAsBytes();
-        if (bytes.isNotEmpty) {
-          final ext = file.extension?.toLowerCase() ?? 'webm';
-          final mime = ext == 'mp3'
-              ? 'audio/mp3'
-              : (ext == 'wav'
-                  ? 'audio/wav'
-                  : (ext == 'ogg' ? 'audio/ogg' : 'audio/webm'));
-          setState(() {
-            _pendingVoiceAudio = RecordedAudio(
-              bytes: bytes,
-              mimeType: mime,
-              durationSeconds: 4,
-            );
-          });
-        }
+      final picked = await FilePickerHelper.pickAudio();
+      if (picked != null && picked.bytes.isNotEmpty && mounted) {
+        final ext = picked.extension ?? 'webm';
+        final mime = ext == 'mp3'
+            ? 'audio/mp3'
+            : (ext == 'wav'
+                ? 'audio/wav'
+                : (ext == 'ogg' ? 'audio/ogg' : 'audio/webm'));
+        setState(() {
+          _pendingVoiceAudio = RecordedAudio(
+            bytes: picked.bytes,
+            mimeType: mime,
+            durationSeconds: 4,
+          );
+        });
       }
     } catch (e) {
       debugPrint('Error picking audio file: $e');
@@ -700,23 +697,19 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
             ? 'ogg'
             : (audio.mimeType.contains('mp4') ? 'mp4' : 'webm');
         final filename = 'voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
-        final mediaUrl = await ApiService.uploadMedia(audio.bytes, filename);
-        if (mediaUrl != null) {
-          _sendMessage(
-            type: MessageType.audio,
-            mediaUrl: mediaUrl,
-            customContent: caption.isNotEmpty ? caption : '🎙️ Voice note (${audio.formattedDuration})',
-          );
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('⚠️ Voice upload failed. Please try again.'),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
+        String? mediaUrl;
+        try {
+          mediaUrl = await ApiService.uploadMedia(audio.bytes, filename);
+        } catch (e) {
+          debugPrint('Upload voice notice (using data URI): $e');
         }
+        mediaUrl ??= 'data:${audio.mimeType};base64,${base64Encode(audio.bytes)}';
+
+        _sendMessage(
+          type: MessageType.audio,
+          mediaUrl: mediaUrl,
+          customContent: caption.isNotEmpty ? caption : '🎙️ Voice note (${audio.formattedDuration})',
+        );
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -745,23 +738,23 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
       _discardPendingImage();
 
       try {
-        final mediaUrl = await ApiService.uploadMedia(bytes, filename);
-        if (mediaUrl != null) {
-          _sendMessage(
-            type: MessageType.image,
-            mediaUrl: mediaUrl,
-            customContent: caption.isNotEmpty ? caption : 'Shared an image',
-          );
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('⚠️ Image upload failed. Please try again.'),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
+        String? mediaUrl;
+        try {
+          mediaUrl = await ApiService.uploadMedia(bytes, filename);
+        } catch (e) {
+          debugPrint('Upload image notice (using data URI fallback): $e');
         }
+
+        if (mediaUrl == null || mediaUrl.isEmpty) {
+          final ext = filename.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+          mediaUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+        }
+
+        _sendMessage(
+          type: MessageType.image,
+          mediaUrl: mediaUrl,
+          customContent: caption.isNotEmpty ? caption : 'Shared an image',
+        );
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -790,23 +783,24 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
       _discardPendingDocument();
 
       try {
-        final mediaUrl = await ApiService.uploadMedia(bytes, filename);
-        if (mediaUrl != null) {
-          _sendMessage(
-            type: MessageType.file,
-            mediaUrl: mediaUrl,
-            customContent: caption.isNotEmpty ? caption : filename,
-          );
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('⚠️ Document upload failed. Please try again.'),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
+        String? mediaUrl;
+        try {
+          mediaUrl = await ApiService.uploadMedia(bytes, filename);
+        } catch (e) {
+          debugPrint('Upload document notice (using data URI fallback): $e');
         }
+
+        if (mediaUrl == null || mediaUrl.isEmpty) {
+          final ext = filename.contains('.') ? filename.split('.').last.toLowerCase() : 'pdf';
+          final mime = ext == 'pdf' ? 'application/pdf' : 'application/octet-stream';
+          mediaUrl = 'data:$mime;name=${Uri.encodeComponent(filename)};base64,${base64Encode(bytes)}';
+        }
+
+        _sendMessage(
+          type: MessageType.file,
+          mediaUrl: mediaUrl,
+          customContent: caption.isNotEmpty ? caption : filename,
+        );
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1047,6 +1041,17 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
           callType: isVideo ? 'VIDEO' : 'AUDIO',
         );
         _activeCallSession = session;
+        if (session.status == 'BUSY') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('$otherName is currently busy on another call.'),
+                backgroundColor: const Color(0xFFEF4444),
+              ),
+            );
+          }
+          return;
+        }
       }
     } catch (_) {}
 
@@ -1105,6 +1110,8 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
         title: _contactName,
         avatarUrl: _contactAvatar ?? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         isVideo: _isCallVideo,
+        session: _activeCallSession,
+        isIncoming: false,
         onEndCallWithDuration: _handleEndCall,
       );
     }

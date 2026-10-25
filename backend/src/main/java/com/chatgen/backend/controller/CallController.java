@@ -6,12 +6,16 @@ import com.chatgen.backend.repository.CallSessionRepository;
 import com.chatgen.backend.repository.ConversationRepository;
 import com.chatgen.backend.repository.MessageRepository;
 import com.chatgen.backend.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -38,13 +42,60 @@ public class CallController {
         this.messagingTemplate = messagingTemplate;
     }
 
-    @PostMapping("/initiate")
+    /**
+     * Initiate a real-time audio or video call session.
+     * Prevents duplicate/conflicting calls if the recipient is already in a call.
+     */
+    @PostMapping(value = {"", "/initiate"})
     public ResponseEntity<?> initiateCall(@RequestBody Map<String, Object> payload) {
+        if (payload.get("conversationId") == null || payload.get("callerId") == null || payload.get("receiverId") == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "conversationId, callerId, and receiverId are required"));
+        }
+
         UUID conversationId = UUID.fromString(payload.get("conversationId").toString());
         UUID callerId = UUID.fromString(payload.get("callerId").toString());
         UUID receiverId = UUID.fromString(payload.get("receiverId").toString());
         String callType = payload.getOrDefault("callType", "AUDIO").toString().toUpperCase();
 
+        // 1. Check if recipient is already in an active call (RINGING, ACCEPTED, CONNECTED)
+        List<CallSession> activeSessions = callSessionRepository.findActiveSessionsForUser(
+                receiverId, List.of("RINGING", "ACCEPTED", "CONNECTED"));
+
+        if (!activeSessions.isEmpty()) {
+            CallSession busySession = new CallSession();
+            busySession.setConversationId(conversationId);
+            busySession.setCallerId(callerId);
+            busySession.setReceiverId(receiverId);
+            busySession.setCallType(callType);
+            busySession.setStatus("BUSY");
+            busySession.setTerminationReason("BUSY");
+            busySession.setStartedAt(Instant.now());
+            busySession.setEndedAt(Instant.now());
+
+            userRepository.findById(callerId).ifPresent(u -> {
+                busySession.setCallerName(u.getDisplayName());
+                busySession.setCallerAvatarUrl(u.getAvatarUrl());
+            });
+            userRepository.findById(receiverId).ifPresent(u -> {
+                busySession.setReceiverName(u.getDisplayName());
+            });
+
+            CallSession savedBusy = callSessionRepository.save(busySession);
+
+            Map<String, Object> busySignal = new HashMap<>();
+            busySignal.put("type", "CALL_BUSY");
+            busySignal.put("callSession", savedBusy);
+            busySignal.put("message", "User is currently busy on another call");
+            busySignal.put("conversationId", conversationId.toString());
+
+            try {
+                messagingTemplate.convertAndSend("/topic/call.user." + callerId, busySignal);
+            } catch (Exception ignored) {}
+
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(savedBusy);
+        }
+
+        // 2. Create new active CallSession
         CallSession session = new CallSession();
         session.setConversationId(conversationId);
         session.setCallerId(callerId);
@@ -63,9 +114,9 @@ public class CallController {
 
         CallSession saved = callSessionRepository.save(session);
 
-        // Real-time signaling push to receiver and conversation
+        // 3. Dispatch real-time CALL_INCOMING and CALL_INITIATE signaling events
         Map<String, Object> signal = new HashMap<>();
-        signal.put("type", "CALL_INITIATE");
+        signal.put("type", "CALL_INCOMING");
         signal.put("callSession", saved);
         signal.put("conversationId", conversationId.toString());
 
@@ -77,11 +128,18 @@ public class CallController {
         return ResponseEntity.ok(saved);
     }
 
+    /**
+     * Accept an incoming call.
+     */
     @PostMapping("/{id}/accept")
     public ResponseEntity<?> acceptCall(@PathVariable UUID id) {
         return callSessionRepository.findById(id).map(session -> {
             session.setStatus("ACCEPTED");
-            session.setStartedAt(Instant.now());
+            Instant now = Instant.now();
+            session.setAnsweredAt(now);
+            if (session.getStartedAt() == null) {
+                session.setStartedAt(now);
+            }
             CallSession saved = callSessionRepository.save(session);
 
             Map<String, Object> signal = new HashMap<>();
@@ -98,10 +156,14 @@ public class CallController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Reject an incoming call.
+     */
     @PostMapping("/{id}/reject")
     public ResponseEntity<?> rejectCall(@PathVariable UUID id) {
         return callSessionRepository.findById(id).map(session -> {
             session.setStatus("REJECTED");
+            session.setTerminationReason("REJECTED");
             session.setEndedAt(Instant.now());
             CallSession saved = callSessionRepository.save(session);
 
@@ -119,14 +181,74 @@ public class CallController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * Cancel an outgoing call before it is answered.
+     */
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<?> cancelCall(@PathVariable UUID id) {
+        return callSessionRepository.findById(id).map(session -> {
+            session.setStatus("CANCELLED");
+            session.setTerminationReason("CANCELLED");
+            session.setEndedAt(Instant.now());
+            CallSession saved = callSessionRepository.save(session);
+
+            Map<String, Object> signal = new HashMap<>();
+            signal.put("type", "CALL_CANCEL");
+            signal.put("callSession", saved);
+            signal.put("conversationId", saved.getConversationId().toString());
+
+            try {
+                messagingTemplate.convertAndSend("/topic/call.user." + saved.getReceiverId(), signal);
+                messagingTemplate.convertAndSend("/topic/call." + saved.getConversationId(), signal);
+            } catch (Exception ignored) {}
+
+            return ResponseEntity.ok(saved);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Handle unanswered call timeout.
+     */
+    @PostMapping("/{id}/timeout")
+    public ResponseEntity<?> timeoutCall(@PathVariable UUID id) {
+        return callSessionRepository.findById(id).map(session -> {
+            session.setStatus("MISSED");
+            session.setTerminationReason("TIMEOUT");
+            session.setEndedAt(Instant.now());
+            CallSession saved = callSessionRepository.save(session);
+
+            Map<String, Object> signal = new HashMap<>();
+            signal.put("type", "CALL_TIMEOUT");
+            signal.put("callSession", saved);
+            signal.put("conversationId", saved.getConversationId().toString());
+
+            try {
+                messagingTemplate.convertAndSend("/topic/call.user." + saved.getCallerId(), signal);
+                messagingTemplate.convertAndSend("/topic/call.user." + saved.getReceiverId(), signal);
+                messagingTemplate.convertAndSend("/topic/call." + saved.getConversationId(), signal);
+            } catch (Exception ignored) {}
+
+            return ResponseEntity.ok(saved);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * End an ongoing call. Records duration and updates chat history with a system message.
+     */
     @PostMapping("/{id}/end")
     public ResponseEntity<?> endCall(@PathVariable UUID id, @RequestBody(required = false) Map<String, Object> payload) {
         return callSessionRepository.findById(id).map(session -> {
             session.setStatus("ENDED");
+            if (session.getTerminationReason() == null) {
+                session.setTerminationReason("NORMAL");
+            }
             Instant now = Instant.now();
             session.setEndedAt(now);
-            if (session.getStartedAt() != null) {
-                int duration = (int) Duration.between(session.getStartedAt(), now).getSeconds();
+
+            // Compute call duration from answer time, or started time
+            Instant startTime = session.getAnsweredAt() != null ? session.getAnsweredAt() : session.getStartedAt();
+            if (startTime != null) {
+                int duration = (int) Duration.between(startTime, now).getSeconds();
                 session.setDurationSeconds(Math.max(0, duration));
             }
             CallSession saved = callSessionRepository.save(session);
@@ -160,33 +282,94 @@ public class CallController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/ice-servers")
-    public ResponseEntity<List<Map<String, Object>>> getIceServers() {
+    /**
+     * Retrieve a specific call session by ID.
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getCallSession(@PathVariable UUID id) {
+        return callSessionRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Retrieve active ringing or connected call for a given user.
+     */
+    @GetMapping("/active")
+    public ResponseEntity<?> getActiveCall(@RequestParam String userId) {
+        try {
+            UUID uid = UUID.fromString(userId);
+            List<CallSession> active = callSessionRepository.findActiveSessionsForUser(
+                    uid, List.of("RINGING", "ACCEPTED", "CONNECTED"));
+            if (!active.isEmpty()) {
+                return ResponseEntity.ok(active.get(0));
+            }
+            return ResponseEntity.ok(Collections.emptyMap());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid user ID format"));
+        }
+    }
+
+    /**
+     * Self-Hosted coturn STUN/TURN ephemeral credential generation.
+     * Complies with the standard TURN REST API algorithm (RFC 7635):
+     * Generates a 24-hour expiring HMAC-SHA1 signature using COTURN_SECRET.
+     * Permanent credentials are never exposed to the frontend.
+     */
+    @GetMapping(value = {"/turn-credentials", "/ice-servers"})
+    public ResponseEntity<List<Map<String, Object>>> getTurnCredentials(@RequestParam(required = false) String userId) {
         List<Map<String, Object>> iceServers = new ArrayList<>();
 
-        // Google STUN
-        Map<String, Object> stun1 = new HashMap<>();
-        stun1.put("urls", List.of("stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"));
-        iceServers.add(stun1);
+        String coturnHost = System.getenv().getOrDefault("COTURN_HOST", "turn.whisper.chat");
+        String coturnPort = System.getenv().getOrDefault("COTURN_PORT", "3478");
+        String coturnTlsPort = System.getenv().getOrDefault("COTURN_TLS_PORT", "5349");
+        String coturnSecret = System.getenv().getOrDefault("COTURN_SECRET", "whisper_turn_secret_secure_key_2026");
 
-        // Twilio Global STUN
-        Map<String, Object> stun2 = new HashMap<>();
-        stun2.put("urls", List.of("stun:global.stun.twilio.com:3478"));
-        iceServers.add(stun2);
+        // 1. Primary Self-Hosted Coturn STUN
+        Map<String, Object> selfStun = new HashMap<>();
+        selfStun.put("urls", List.of("stun:" + coturnHost + ":" + coturnPort));
+        iceServers.add(selfStun);
 
-        // Turn server hook (configured via env variables if provided in production)
-        String turnUrl = System.getenv("TURN_SERVER_URL");
-        if (turnUrl != null && !turnUrl.isBlank()) {
-            Map<String, Object> turn = new HashMap<>();
-            turn.put("urls", List.of(turnUrl));
-            turn.put("username", System.getenv().getOrDefault("TURN_USERNAME", "chatgen"));
-            turn.put("credential", System.getenv().getOrDefault("TURN_CREDENTIAL", "chatgen_pass"));
-            iceServers.add(turn);
+        // 2. Ephemeral TURN Credentials (expires in 24 hours)
+        long expiryTimestamp = Instant.now().getEpochSecond() + 86400; // 24h expiration
+        String safeUser = (userId != null && !userId.isBlank()) ? userId : UUID.randomUUID().toString().substring(0, 8);
+        String ephemeralUsername = expiryTimestamp + ":" + safeUser;
+        String ephemeralPassword = calculateHmacSha1(ephemeralUsername, coturnSecret);
+
+        if (ephemeralPassword != null && !ephemeralPassword.isEmpty()) {
+            // UDP Relay Server
+            Map<String, Object> turnUdp = new HashMap<>();
+            turnUdp.put("urls", List.of("turn:" + coturnHost + ":" + coturnPort + "?transport=udp"));
+            turnUdp.put("username", ephemeralUsername);
+            turnUdp.put("credential", ephemeralPassword);
+            iceServers.add(turnUdp);
+
+            // TCP Relay Server (for restrictive firewalls blocking UDP)
+            Map<String, Object> turnTcp = new HashMap<>();
+            turnTcp.put("urls", List.of("turn:" + coturnHost + ":" + coturnPort + "?transport=tcp"));
+            turnTcp.put("username", ephemeralUsername);
+            turnTcp.put("credential", ephemeralPassword);
+            iceServers.add(turnTcp);
+
+            // Secure TLS Relay Server (port 5349)
+            Map<String, Object> turnTls = new HashMap<>();
+            turnTls.put("urls", List.of("turns:" + coturnHost + ":" + coturnTlsPort + "?transport=tcp"));
+            turnTls.put("username", ephemeralUsername);
+            turnTls.put("credential", ephemeralPassword);
+            iceServers.add(turnTls);
         }
+
+        // 3. Fallback standard STUN for resilient direct peer connectivity
+        Map<String, Object> fallbackStun = new HashMap<>();
+        fallbackStun.put("urls", List.of("stun:stun.l.google.com:19302"));
+        iceServers.add(fallbackStun);
 
         return ResponseEntity.ok(iceServers);
     }
 
+    /**
+     * Retrieve complete call history for a user.
+     */
     @GetMapping("/history")
     public ResponseEntity<List<CallSession>> getCallHistory(@RequestParam String userId) {
         try {
@@ -197,14 +380,41 @@ public class CallController {
         }
     }
 
+    /**
+     * Real-time WebRTC WebSocket signaling relay.
+     * Routes SDP Offers, SDP Answers, ICE Candidates, and Call Lifecycle events.
+     */
     @MessageMapping("/call.signal")
     public void handleWebRtcSignal(@Payload Map<String, Object> signal) {
+        if (signal == null) return;
+
         String targetUserId = (String) signal.get("targetUserId");
         String conversationId = (String) signal.get("conversationId");
-        if (targetUserId != null) {
+
+        // Validate event types
+        String type = (String) signal.get("type");
+        if (type == null) return;
+
+        if (targetUserId != null && !targetUserId.isBlank()) {
             messagingTemplate.convertAndSend("/topic/call.user." + targetUserId, signal);
-        } else if (conversationId != null) {
+        }
+        if (conversationId != null && !conversationId.isBlank()) {
             messagingTemplate.convertAndSend("/topic/call." + conversationId, signal);
+        }
+    }
+
+    /**
+     * Standard HMAC-SHA1 calculation for TURN REST API authentication (RFC 7635).
+     */
+    private String calculateHmacSha1(String data, String key) {
+        try {
+            SecretKeySpec signingKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA1");
+            Mac mac = Mac.getInstance("HmacSHA1");
+            mac.init(signingKey);
+            byte[] rawHmac = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(rawHmac);
+        } catch (Exception e) {
+            return null;
         }
     }
 }

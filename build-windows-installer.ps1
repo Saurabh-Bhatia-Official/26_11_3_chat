@@ -53,6 +53,8 @@ Write-Host "✅ Found Inno Setup: $isccPath" -ForegroundColor Green
 
 # 3. Build Flutter Windows Release
 Write-Host "`n>>> [3/4] Building Flutter Windows release binary..." -ForegroundColor Yellow
+$env:CL = "$env:CL /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+$env:_CL_ = "$env:_CL_ /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
 Push-Location "$PSScriptRoot\frontend"
 try {
     flutter config --enable-windows-desktop

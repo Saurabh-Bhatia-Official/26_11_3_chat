@@ -46,6 +46,19 @@ jobs:
           cache: true
           cache-key: "flutter-android-:os:-:channel:-:version:-:arch:-:hash:"
 
+      - name: 📱 Setup Android SDK Platform 37
+        run: |
+          SDKMANAGER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="sdkmanager"
+          fi
+          yes | $SDKMANAGER --licenses || true
+          $SDKMANAGER "platforms;android-37" || $SDKMANAGER "platforms;android-37.0" || true
+          ANDROID_PLATFORMS="${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms"
+          if [ -d "$ANDROID_PLATFORMS/android-37.0" ] && [ ! -e "$ANDROID_PLATFORMS/android-37" ]; then
+            ln -s "$ANDROID_PLATFORMS/android-37.0" "$ANDROID_PLATFORMS/android-37"
+          fi
+
       - name: 📦 Install Flutter Dependencies
         run: |
           cd frontend
@@ -205,6 +218,9 @@ jobs:
     name: 🪟 Build Windows Desktop App
     runs-on: windows-latest
     timeout-minutes: 40
+    env:
+      CL: "/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+      _CL_: "/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
 
     steps:
       - name: 📥 Checkout Repository
@@ -226,7 +242,10 @@ jobs:
           flutter pub get
 
       - name: 🔨 Build Windows Release
+        shell: pwsh
         run: |
+          $env:CL = "$env:CL /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+          $env:_CL_ = "$env:_CL_ /D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
           cd frontend
           flutter build windows --release
 

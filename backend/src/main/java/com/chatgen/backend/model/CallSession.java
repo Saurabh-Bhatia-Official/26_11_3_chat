@@ -36,9 +36,14 @@ public class CallSession {
 
     private Instant startedAt;
 
+    private Instant answeredAt;
+
     private Instant endedAt;
 
     private Integer durationSeconds = 0;
+
+    @Column(length = 50)
+    private String terminationReason; // NORMAL, CANCELLED, REJECTED, BUSY, TIMEOUT, FAILED
 
     private Instant createdAt = Instant.now();
 
@@ -74,11 +79,17 @@ public class CallSession {
     public Instant getStartedAt() { return startedAt; }
     public void setStartedAt(Instant startedAt) { this.startedAt = startedAt; }
 
+    public Instant getAnsweredAt() { return answeredAt; }
+    public void setAnsweredAt(Instant answeredAt) { this.answeredAt = answeredAt; }
+
     public Instant getEndedAt() { return endedAt; }
     public void setEndedAt(Instant endedAt) { this.endedAt = endedAt; }
 
     public Integer getDurationSeconds() { return durationSeconds != null ? durationSeconds : 0; }
     public void setDurationSeconds(Integer durationSeconds) { this.durationSeconds = durationSeconds; }
+
+    public String getTerminationReason() { return terminationReason; }
+    public void setTerminationReason(String terminationReason) { this.terminationReason = terminationReason; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

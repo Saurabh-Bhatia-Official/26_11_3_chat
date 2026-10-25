@@ -9,6 +9,8 @@ import '../widgets/call_modal.dart';
 import '../widgets/network_status_banner.dart';
 import '../widgets/software_logo_widget.dart';
 import '../widgets/group_icon_picker_modal.dart';
+import '../widgets/call_history_modal.dart';
+import '../services/call_signaling_service.dart';
 import 'chat_view.dart';
 import 'identity_settings_view.dart';
 import 'safety_guardian_view.dart';
@@ -40,17 +42,39 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = '';
   Timer? _conversationsSyncTimer;
   bool _isSyncingConversations = false;
+  StreamSubscription? _callSignalSub;
 
   @override
   void initState() {
     super.initState();
     _loadConversations();
     _startConversationsSync();
+    _initCallSignaling();
+  }
+
+  void _initCallSignaling() {
+    final me = ApiService.currentUser;
+    CallSignalingService().init(me.id);
+    _callSignalSub?.cancel();
+    _callSignalSub = CallSignalingService().onSignal.listen((signal) {
+      final type = signal['type'] as String?;
+      if (type == 'CALL_INCOMING' || type == 'CALL_INITIATE') {
+        final sessionMap = signal['callSession'] as Map<String, dynamic>?;
+        if (sessionMap != null) {
+          final call = CallSessionModel.fromJson(sessionMap);
+          if (call.receiverId == me.id && _handledCallId != call.id) {
+            _handledCallId = call.id;
+            _showIncomingCallDialog(call);
+          }
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _conversationsSyncTimer?.cancel();
+    _callSignalSub?.cancel();
     super.dispose();
   }
 
@@ -131,6 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           title: call.callerName,
                           avatarUrl: call.callerAvatarUrl ?? '',
                           isVideo: call.callType == 'VIDEO',
+                          session: call,
+                          isIncoming: true,
                           onEndCallWithDuration: (dur) {
                             ApiService.endCall(call.id, durationSeconds: dur);
                             Navigator.of(context, rootNavigator: true).pop();
@@ -268,6 +294,26 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           });
           _loadConversations();
+        },
+      ),
+    );
+  }
+
+  void _openCallHistoryDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => CallHistoryModal(
+        onCallBack: (conversationId, otherId, otherName, isVideo) {
+          final match = _conversations.cast<ConversationModel?>().firstWhere(
+            (c) => c?.id == conversationId,
+            orElse: () => null,
+          );
+          if (match != null) {
+            setState(() {
+              _selectedConversation = match;
+              _currentTab = MainNavigationTab.chats;
+            });
+          }
         },
       ),
     );
@@ -550,6 +596,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: const Icon(Icons.add_circle, color: Color(0xFF06B6D4), size: 24),
                 tooltip: 'Start Chat with User',
                 onPressed: _openNewChatDialog,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: const Icon(Icons.call_outlined, color: Color(0xFF8B5CF6), size: 22),
+                tooltip: 'Call History',
+                onPressed: _openCallHistoryDialog,
               ),
             ],
           ),

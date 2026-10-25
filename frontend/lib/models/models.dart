@@ -466,10 +466,12 @@ class CallSessionModel {
   final String receiverId;
   final String receiverName;
   final String callType; // AUDIO, VIDEO
-  final String status;   // RINGING, ACCEPTED, REJECTED, ENDED, MISSED
+  final String status;   // RINGING, ACCEPTED, REJECTED, CANCELLED, ENDED, BUSY, MISSED, FAILED
   final DateTime startedAt;
+  final DateTime? answeredAt;
   final DateTime? endedAt;
   final int durationSeconds;
+  final String? terminationReason;
 
   CallSessionModel({
     required this.id,
@@ -482,8 +484,10 @@ class CallSessionModel {
     required this.callType,
     required this.status,
     required this.startedAt,
+    this.answeredAt,
     this.endedAt,
     this.durationSeconds = 0,
+    this.terminationReason,
   });
 
   factory CallSessionModel.fromJson(Map<String, dynamic> json) {
@@ -500,8 +504,10 @@ class CallSessionModel {
       startedAt: json['startedAt'] != null
           ? DateTime.tryParse(json['startedAt']) ?? DateTime.now()
           : DateTime.now(),
+      answeredAt: json['answeredAt'] != null ? DateTime.tryParse(json['answeredAt']) : null,
       endedAt: json['endedAt'] != null ? DateTime.tryParse(json['endedAt']) : null,
       durationSeconds: json['durationSeconds'] ?? 0,
+      terminationReason: json['terminationReason'],
     );
   }
 }

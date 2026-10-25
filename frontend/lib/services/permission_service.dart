@@ -115,6 +115,15 @@ class PermissionService {
       return PermissionStatus.granted;
     }
 
+    // On Desktop platforms (Windows, macOS, Linux), native file pickers do not use mobile runtime permissions
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      if (type == AppPermissionType.photos) {
+        return PermissionStatus.granted;
+      }
+    }
+
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android && type == AppPermissionType.photos) {
       try {
         final photos = await Permission.photos.status;
@@ -166,12 +175,24 @@ class PermissionService {
     }
 
     if (kIsWeb) {
-      // On web, show explanation if requested, then proceed to browser prompt
+      if (type == AppPermissionType.photos) {
+        return true;
+      }
+      // On web, show explanation if requested for camera/mic, then proceed to browser prompt
       if (showRationale) {
         final proceed = await showRationaleDialog(context, type);
         if (!proceed) return false;
       }
       return true;
+    }
+
+    // On Desktop platforms, native OS file dialogs do not require mobile runtime permissions
+    if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      if (type == AppPermissionType.photos) {
+        return true;
+      }
     }
 
     final currentStatus = await checkPermission(type);

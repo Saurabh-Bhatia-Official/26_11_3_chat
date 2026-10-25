@@ -992,12 +992,15 @@ class ApiService {
       'callType': callType,
     };
     final res = await http.post(
-      Uri.parse('$baseUrl/calls/initiate'),
+      Uri.parse('$baseUrl/calls'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(payload),
     ).timeout(const Duration(seconds: 6));
 
     if (res.statusCode == 200) {
+      return CallSessionModel.fromJson(jsonDecode(res.body));
+    } else if (res.statusCode == 409) {
+      // Recipient is busy
       return CallSessionModel.fromJson(jsonDecode(res.body));
     } else {
       final err = jsonDecode(res.body);
@@ -1025,9 +1028,39 @@ class ApiService {
     return null;
   }
 
+  static Future<CallSessionModel?> cancelCall(String callId) async {
+    try {
+      final res = await http.post(Uri.parse('$baseUrl/calls/$callId/cancel')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return CallSessionModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<CallSessionModel?> timeoutCall(String callId) async {
+    try {
+      final res = await http.post(Uri.parse('$baseUrl/calls/$callId/timeout')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return CallSessionModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<CallSessionModel?> endCall(String callId, {int durationSeconds = 0}) async {
     try {
       final res = await http.post(Uri.parse('$baseUrl/calls/$callId/end?durationSeconds=$durationSeconds')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        return CallSessionModel.fromJson(jsonDecode(res.body));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<CallSessionModel?> getCallSession(String callId) async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/calls/$callId')).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         return CallSessionModel.fromJson(jsonDecode(res.body));
       }
@@ -1049,9 +1082,22 @@ class ApiService {
     return null;
   }
 
-  static Future<List<Map<String, dynamic>>> getIceServers() async {
+  static Future<List<CallSessionModel>> getCallHistory({String? userId}) async {
+    final uid = userId ?? currentUser.id;
     try {
-      final res = await http.get(Uri.parse('$baseUrl/calls/ice-servers')).timeout(const Duration(seconds: 4));
+      final res = await http.get(Uri.parse('$baseUrl/calls/history?userId=$uid')).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final List list = jsonDecode(res.body);
+        return list.map((e) => CallSessionModel.fromJson(e)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<List<Map<String, dynamic>>> getIceServers() async {
+    final me = currentUser;
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/calls/turn-credentials?userId=${me.id}')).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final List list = jsonDecode(res.body);
         return list.map((e) => Map<String, dynamic>.from(e)).toList();

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../services/file_picker_helper.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass_container.dart';
@@ -300,18 +301,9 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     if (!hasPerm) return;
 
     try {
-      final picker = ImagePicker();
-      final picked = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 88,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      );
-      if (picked != null) {
-        final bytes = await picked.readAsBytes();
-        if (bytes.isNotEmpty && mounted) {
-          await _uploadAndApplyAvatar(bytes, picked.name);
-        }
+      final picked = await FilePickerHelper.pickImage();
+      if (picked != null && picked.bytes.isNotEmpty && mounted) {
+        await _uploadAndApplyAvatar(picked.bytes, picked.name);
       }
     } catch (e) {
       debugPrint('Error picking from gallery: $e');
@@ -332,28 +324,11 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     if (!hasPerm) return;
 
     try {
-      final file = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+      final picked = await FilePickerHelper.pickDocument(
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
       );
-      if (file == null) return;
-
-      final extension = file.extension?.toLowerCase() ?? '';
-      if (!['jpg', 'jpeg', 'png', 'webp'].contains(extension)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please select an image in JPG, PNG, or WEBP format.'),
-              backgroundColor: Color(0xFFEF4444),
-            ),
-          );
-        }
-        return;
-      }
-
-      final bytes = await file.readAsBytes();
-      if (bytes.isNotEmpty && mounted) {
-        await _uploadAndApplyAvatar(bytes, file.name);
+      if (picked != null && picked.bytes.isNotEmpty && mounted) {
+        await _uploadAndApplyAvatar(picked.bytes, picked.name);
       }
     } catch (e) {
       debugPrint('Error picking file: $e');
@@ -505,30 +480,16 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     if (!hasPerm) return;
 
     try {
-      final file = await FilePicker.pickFile(
-        type: FileType.custom,
+      final picked = await FilePickerHelper.pickDocument(
         allowedExtensions: ['png', 'jpg', 'jpeg', 'svg', 'webp', 'ico'],
       );
 
-      if (file == null) return;
+      if (picked == null || picked.bytes.isEmpty) return;
 
       setState(() => _isUploadingSoftwareLogo = true);
 
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) {
-        if (mounted) {
-          setState(() => _isUploadingSoftwareLogo = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not read the selected image file.'),
-              backgroundColor: Color(0xFFEF4444),
-            ),
-          );
-        }
-        return;
-      }
-
-      final ext = file.extension?.toLowerCase() ?? 'png';
+      final bytes = picked.bytes;
+      final ext = picked.extension ?? 'png';
       final mime = ext == 'svg'
           ? 'image/svg+xml'
           : (ext == 'ico' ? 'image/x-icon' : 'image/$ext');
@@ -537,10 +498,14 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
       // Immediate local UI response
       await ApiService.setCustomLogo(dataUrl);
 
-      // Upload to cloud media storage and persist cloud URL to cloud database
-      final uploadedUrl = await ApiService.uploadMedia(bytes, file.name);
-      if (uploadedUrl != null && !uploadedUrl.startsWith('data:')) {
-        await ApiService.setCustomLogo(uploadedUrl);
+      // Upload to media storage and persist if available
+      try {
+        final uploadedUrl = await ApiService.uploadMedia(bytes, picked.name);
+        if (uploadedUrl != null && !uploadedUrl.startsWith('data:')) {
+          await ApiService.setCustomLogo(uploadedUrl);
+        }
+      } catch (e) {
+        debugPrint('Cloud media upload notice: $e');
       }
 
       if (mounted) {
@@ -552,7 +517,7 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                 const Icon(Icons.check_circle, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('Software logo & system favicon updated (${file.name})!'),
+                  child: Text('Software logo & system favicon updated (${picked.name})!'),
                 ),
               ],
             ),

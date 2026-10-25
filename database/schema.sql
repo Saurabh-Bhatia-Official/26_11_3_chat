@@ -143,8 +143,10 @@ CREATE TABLE IF NOT EXISTS call_sessions (
     call_type VARCHAR(20) DEFAULT 'AUDIO',
     status VARCHAR(30) DEFAULT 'RINGING',
     started_at TIMESTAMP WITH TIME ZONE,
+    answered_at TIMESTAMP WITH TIME ZONE,
     ended_at TIMESTAMP WITH TIME ZONE,
     duration_seconds INT DEFAULT 0,
+    termination_reason VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -167,5 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_safety_events_user ON safety_events(user_id, crea
 CREATE INDEX IF NOT EXISTS idx_game_rooms_conversation ON game_rooms(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_call_sessions_conv ON call_sessions(conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_sessions_caller ON call_sessions(caller_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_sessions_receiver ON call_sessions(receiver_id, created_at DESC);
 
 
