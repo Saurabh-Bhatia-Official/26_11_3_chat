@@ -100,6 +100,36 @@ public class AuthController {
         return signup(payload);
     }
 
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody(required = false) Map<String, String> payload
+    ) {
+        String rawToken = jwtService.extractToken(authHeader);
+        if (rawToken == null && payload != null) {
+            rawToken = payload.get("token");
+        }
+        if (rawToken == null || rawToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "No token provided"));
+        }
+        UUID userId = jwtService.getUserIdFromTokenAllowExpired(rawToken);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid or unrecognized token"));
+        }
+        return userRepository.findById(userId).map(user -> {
+            user.setLastSeen(Instant.now());
+            userRepository.save(user);
+
+            String newToken = jwtService.generateToken(user);
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("token", newToken);
+            resp.put("tokenType", "Bearer");
+            resp.put("expiresInMs", 86400000L);
+            resp.put("user", user);
+            return ResponseEntity.ok(resp);
+        }).orElse(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found")));
+    }
+
     @GetMapping({"/account", "/me"})
     public ResponseEntity<?> getCurrentAccount(
             @RequestHeader(value = "Authorization", required = false) String authHeader,

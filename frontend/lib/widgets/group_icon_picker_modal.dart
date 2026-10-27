@@ -1,6 +1,6 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../services/file_picker_helper.dart';
 import '../services/group_icon_helper.dart';
 import '../services/permission_service.dart';
@@ -9,13 +9,13 @@ import 'camera_capture_dialog.dart';
 
 class GroupIconPickerModal extends StatefulWidget {
   final String currentIcon;
-  final ValueChanged<String> onIconSelected;
+  final ValueChanged<String>? onIconSelected;
   final String title;
 
   const GroupIconPickerModal({
     super.key,
     required this.currentIcon,
-    required this.onIconSelected,
+    this.onIconSelected,
     this.title = 'Customize Group Icon',
   });
 
@@ -25,8 +25,8 @@ class GroupIconPickerModal extends StatefulWidget {
     required String currentIcon,
     ValueChanged<String>? onIconSelected,
     String title = 'Customize Group Icon',
-  }) {
-    return showDialog<String?>(
+  }) async {
+    final result = await showDialog<String?>(
       context: context,
       builder: (ctx) => GroupIconPickerModal(
         currentIcon: currentIcon,
@@ -37,6 +37,7 @@ class GroupIconPickerModal extends StatefulWidget {
         },
       ),
     );
+    return result;
   }
 
   @override
@@ -71,7 +72,7 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
     if (mounted) setState(() => _isLoading = false);
 
     if (result != null && mounted) {
-      widget.onIconSelected(result.dataUri);
+      setState(() => _selectedIcon = result.dataUri);
     }
   }
 
@@ -93,7 +94,16 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
     try {
       final picked = await FilePickerHelper.pickImage();
       if (picked != null && picked.bytes.isNotEmpty && mounted) {
-        widget.onIconSelected(picked.dataUri);
+        if (picked.bytes.lengthInBytes > 5 * 1024 * 1024) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Image is too large. Maximum supported size is 5MB.'),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+          return;
+        }
+        setState(() => _selectedIcon = picked.dataUri);
       }
     } catch (e) {
       debugPrint('Error picking from gallery: $e');
@@ -109,24 +119,29 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
 
   void _handlePresetSelect(GroupIconOption preset) {
     setState(() => _selectedIcon = preset.preferenceKey);
-    widget.onIconSelected(preset.preferenceKey);
+    if (widget.onIconSelected != null) {
+      widget.onIconSelected!(preset.preferenceKey);
+    }
   }
 
   void _handleResetDefault() {
     final def = GroupIconHelper.defaultIconPreference;
     setState(() => _selectedIcon = def);
-    widget.onIconSelected(def);
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = math.min(480.0, screenSize.width - 32);
+    final dialogHeight = math.min(620.0, screenSize.height - 48);
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
-        width: 480,
-        height: 600,
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 600),
+        width: dialogWidth,
+        height: dialogHeight,
+        constraints: BoxConstraints(maxWidth: 480, maxHeight: dialogHeight),
         decoration: BoxDecoration(
           color: const Color(0xFF0F172A),
           borderRadius: BorderRadius.circular(22),
@@ -161,19 +176,23 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
                       children: [
                         Text(
                           widget.title,
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
                         const Text(
-                          'Choose camera, gallery image, or preset icon',
-                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                          'Select preset or upload photo for this group',
+                          style: TextStyle(color: Colors.white60, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white54, size: 20),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => Navigator.of(context).pop(null),
                   ),
                 ],
               ),
@@ -183,7 +202,7 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
 
             // Tab bar for Quick Actions (Camera / Gallery vs Preset Icons)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Container(
                 decoration: BoxDecoration(
                   color: Colors.black38,
@@ -199,18 +218,20 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
                   labelColor: Colors.white,
                   unselectedLabelColor: Colors.white60,
                   tabs: const [
-                    Tab(icon: Icon(Icons.image, size: 18), text: 'Photo / Gallery'),
-                    Tab(icon: Icon(Icons.palette, size: 18), text: 'Available Icons'),
+                    Tab(icon: Icon(Icons.image, size: 16), text: 'Photo / Gallery'),
+                    Tab(icon: Icon(Icons.palette, size: 16), text: 'Available Icons'),
                   ],
                 ),
               ),
             ),
 
             if (_isLoading)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: CircularProgressIndicator(color: Color(0xFF06B6D4)),
+              const Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: CircularProgressIndicator(color: Color(0xFF06B6D4)),
+                  ),
                 ),
               )
             else
@@ -228,26 +249,44 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
 
             const Divider(color: Colors.white12, height: 1),
 
-            // Footer with Reset & Close
+            // Footer with Reset, Cancel & Done
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   TextButton.icon(
-                    style: TextButton.styleFrom(foregroundColor: Colors.white60),
-                    icon: const Icon(Icons.restore, size: 16),
-                    label: const Text('Reset to Default', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white60,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    ),
+                    icon: const Icon(Icons.restore, size: 14),
+                    label: const Text('Reset', style: TextStyle(fontSize: 12)),
                     onPressed: _handleResetDefault,
                   ),
                   const Spacer(),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white60,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(null),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF06B6D4),
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                     ),
-                    onPressed: () => Navigator.of(context).pop(_selectedIcon),
-                    child: const Text('Done'),
+                    onPressed: () {
+                      if (widget.onIconSelected != null) {
+                        widget.onIconSelected!(_selectedIcon);
+                      }
+                      Navigator.of(context).pop(_selectedIcon);
+                    },
+                    child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -260,7 +299,7 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
 
   Widget _buildCameraAndGalleryTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           // Option 1: Device Camera
@@ -268,7 +307,7 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
             borderRadius: BorderRadius.circular(14),
             onTap: _handleCameraCapture,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(14),
@@ -277,43 +316,43 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: const Color(0xFF06B6D4).withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.photo_camera, color: Color(0xFF06B6D4), size: 28),
+                    child: const Icon(Icons.photo_camera, color: Color(0xFF06B6D4), size: 24),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Capture with Camera',
-                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                         ),
-                        SizedBox(height: 3),
+                        SizedBox(height: 2),
                         Text(
-                          'Take a fresh photo directly using device camera with instant preview & retake',
-                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                          'Take a photo directly with instant preview',
+                          style: TextStyle(color: Colors.white60, fontSize: 11),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+                  const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 12),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
           // Option 2: Device Gallery
           InkWell(
             borderRadius: BorderRadius.circular(14),
             onTap: _handleGalleryPick,
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(14),
@@ -322,52 +361,69 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: const Color(0xFF10B981).withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.photo_library, color: Color(0xFF10B981), size: 28),
+                    child: const Icon(Icons.photo_library, color: Color(0xFF10B981), size: 24),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 14),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Choose from Device Gallery',
-                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                         ),
-                        SizedBox(height: 3),
+                        SizedBox(height: 2),
                         Text(
-                          'Select an existing JPG, PNG, or WEBP image from your device photos',
-                          style: TextStyle(color: Colors.white60, fontSize: 12),
+                          'Select JPG, PNG, or WEBP image (max 5MB)',
+                          style: TextStyle(color: Colors.white60, fontSize: 11),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+                  const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 12),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // Info Note
+          // Active Selection Preview Card
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white10),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.shield_outlined, color: Color(0xFF8B5CF6), size: 18),
-                SizedBox(width: 10),
+                AvatarBadge(
+                  avatarUrl: _selectedIcon,
+                  name: 'Group',
+                  radius: 18,
+                  isGroup: true,
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    'Selected group icons are stored permanently and remain active after restarting the app.',
-                    style: TextStyle(color: Colors.white60, fontSize: 11),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Selected Icon Preview',
+                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        GroupIconHelper.isPreset(_selectedIcon)
+                            ? GroupIconHelper.getPreset(_selectedIcon).name
+                            : 'Custom photo / image selected',
+                        style: const TextStyle(color: Colors.white54, fontSize: 10.5),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -380,7 +436,7 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
 
   Widget _buildPresetIconsTab() {
     return GridView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       itemCount: GroupIconHelper.presets.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -410,14 +466,14 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(7),
                   decoration: BoxDecoration(
                     color: preset.primaryColor.withValues(alpha: 0.25),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(preset.icon, color: preset.primaryColor, size: 20),
+                  child: Icon(preset.icon, color: preset.primaryColor, size: 18),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -427,16 +483,16 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
                         preset.name,
                         style: TextStyle(
                           color: isSelected ? Colors.white : Colors.white70,
-                          fontSize: 12,
+                          fontSize: 11.5,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         preset.description,
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 9.5),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 9),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -444,7 +500,7 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
                   ),
                 ),
                 if (isSelected)
-                  Icon(Icons.check_circle, color: preset.primaryColor, size: 16),
+                  Icon(Icons.check_circle, color: preset.primaryColor, size: 15),
               ],
             ),
           ),

@@ -26,19 +26,58 @@ class NextGenChatApp extends StatelessWidget {
               title: currentSoftwareName,
               debugShowCheckedModeBanner: false,
               theme: AppTheme.getTheme(currentThemeMode),
-              home: ValueListenableBuilder<UserModel?>(
-                valueListenable: ApiService.currentUserNotifier,
-                builder: (context, user, _) {
-                  if (user == null) {
-                    return AuthScreen(
-                      onAuthenticated: () {},
+              home: ValueListenableBuilder<bool>(
+                valueListenable: ApiService.isAuthInitializingNotifier,
+                builder: (context, isInitializing, _) {
+                  if (isInitializing) {
+                    return Scaffold(
+                      backgroundColor: const Color(0xFF070B12),
+                      body: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF06B6D4).withOpacity(0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.chat_bubble_rounded,
+                                color: Color(0xFF06B6D4),
+                                size: 36,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF06B6D4),
+                                strokeWidth: 2.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     );
                   }
-                  return HomeScreen(
-                    currentThemeMode: currentThemeMode,
-                    onThemeChanged: (mode) => AppTheme.setTheme(mode),
-                    onLogout: () {
-                      ApiService.logout();
+                  return ValueListenableBuilder<UserModel?>(
+                    valueListenable: ApiService.currentUserNotifier,
+                    builder: (context, user, _) {
+                      if (user == null) {
+                        return AuthScreen(
+                          onAuthenticated: () {},
+                        );
+                      }
+                      return HomeScreen(
+                        currentThemeMode: currentThemeMode,
+                        onThemeChanged: (mode) => AppTheme.setTheme(mode),
+                        onLogout: () {
+                          ApiService.logout();
+                        },
+                      );
                     },
                   );
                 },

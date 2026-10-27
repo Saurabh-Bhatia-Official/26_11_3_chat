@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/models.dart';
@@ -11,6 +12,7 @@ import '../widgets/software_logo_widget.dart';
 import '../widgets/group_icon_picker_modal.dart';
 import '../widgets/call_history_modal.dart';
 import '../services/call_signaling_service.dart';
+import '../services/group_icon_helper.dart';
 import 'chat_view.dart';
 import 'identity_settings_view.dart';
 import 'safety_guardian_view.dart';
@@ -322,30 +324,84 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isWide = MediaQuery.of(context).size.width > 800;
-    return Scaffold(
-      body: Column(
-        children: [
-          NetworkStatusBanner(onRetry: _loadConversations),
-          Expanded(
-            child: Row(
-              children: [
-                // Left Icon Navigation Rail with dynamic user avatar
-                ValueListenableBuilder<UserModel?>(
-                  valueListenable: ApiService.currentUserNotifier,
-                  builder: (context, user, _) {
-                    return _buildNavRail(theme, user ?? ApiService.currentUser);
-                  },
-                ),
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isWide = screenWidth >= 720;
 
-                // Main Interactive Layout
-                Expanded(
-                  child: _buildMainContent(theme, isWide),
+    return PopScope(
+      canPop: _selectedConversation == null || isWide,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _selectedConversation != null && !isWide) {
+          setState(() => _selectedConversation = null);
+        }
+      },
+      child: Scaffold(
+        bottomNavigationBar: (!isWide && (_selectedConversation == null || _currentTab != MainNavigationTab.chats))
+            ? Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF070B12),
+                  border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08))),
                 ),
-              ],
-            ),
+                child: BottomNavigationBar(
+                  currentIndex: _currentTab.index,
+                  backgroundColor: const Color(0xFF070B12),
+                  selectedItemColor: const Color(0xFF06B6D4),
+                  unselectedItemColor: Colors.white60,
+                  type: BottomNavigationBarType.fixed,
+                  onTap: (index) {
+                    setState(() {
+                      _currentTab = MainNavigationTab.values[index];
+                      if (_currentTab != MainNavigationTab.chats) {
+                        _selectedConversation = null;
+                      }
+                    });
+                  },
+                  items: const [
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.chat_bubble_outline),
+                      activeIcon: Icon(Icons.chat_bubble),
+                      label: 'Chats',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.shield_outlined),
+                      activeIcon: Icon(Icons.shield),
+                      label: 'Guardian',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Icon(Icons.palette_outlined),
+                      activeIcon: Icon(Icons.palette),
+                      label: 'Settings',
+                    ),
+                  ],
+                ),
+              )
+            : null,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              NetworkStatusBanner(onRetry: _loadConversations),
+              Expanded(
+                child: Row(
+                  children: [
+                    // Left Icon Navigation Rail for Tablet / Desktop
+                    if (isWide)
+                      ValueListenableBuilder<UserModel?>(
+                        valueListenable: ApiService.currentUserNotifier,
+                        builder: (context, user, _) {
+                          return _buildNavRail(theme, user ?? ApiService.currentUser);
+                        },
+                      ),
+
+                    // Main Interactive Layout (full width on mobile)
+                    Expanded(
+                      child: _buildMainContent(theme, isWide),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -462,81 +518,100 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMainContent(ThemeData theme, bool isWide) {
+    Widget chatsContent;
+    if (isWide) {
+      chatsContent = Row(
+        children: [
+          // Conversation List Sidebar
+          Container(
+            width: 340,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D131F),
+              border: Border(right: BorderSide(color: Colors.white.withOpacity(0.06))),
+            ),
+            child: _buildConversationListPane(),
+          ),
+
+          // Main Chat Area
+          Expanded(
+            child: _selectedConversation != null
+                ? ChatView(
+                    key: ValueKey(_selectedConversation!.id),
+                    conversation: _selectedConversation!,
+                    onActivity: _syncConversationsSilently,
+                    onDeleteChat: () => _handleDeleteConversation(_selectedConversation!),
+                  )
+                : Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SoftwareLogoWidget(size: 74, iconSize: 40, borderRadius: 22),
+                        const SizedBox(height: 18),
+                        ValueListenableBuilder<String>(
+                          valueListenable: ApiService.softwareNameNotifier,
+                          builder: (context, softwareName, _) {
+                            return Text(
+                              softwareName,
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'No conversation selected',
+                          style: TextStyle(color: Colors.white60, fontSize: 14),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Select a chat from the left or start a new conversation',
+                          style: TextStyle(color: Colors.white38, fontSize: 13),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF06B6D4),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          ),
+                          icon: const Icon(Icons.add_comment, size: 18),
+                          label: const Text('Start New Chat'),
+                          onPressed: _openNewChatDialog,
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      );
+    } else {
+      // Mobile View: Single Pane Navigation
+      if (_selectedConversation != null) {
+        chatsContent = ChatView(
+          key: ValueKey(_selectedConversation!.id),
+          conversation: _selectedConversation!,
+          onBack: () => setState(() => _selectedConversation = null),
+          onActivity: _syncConversationsSilently,
+          onDeleteChat: () => _handleDeleteConversation(_selectedConversation!),
+        );
+      } else {
+        chatsContent = _buildConversationListPane();
+      }
+    }
+
     return IndexedStack(
       index: _currentTab.index,
       children: [
         // Tab 0: Chats
-        Row(
-          children: [
-            // Conversation List Sidebar
-            Container(
-              width: isWide ? 340 : 280,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0D131F),
-                border: Border(right: BorderSide(color: Colors.white.withOpacity(0.06))),
-              ),
-              child: _buildConversationListPane(),
-            ),
-
-            // Main Chat Area
-            Expanded(
-              child: _selectedConversation != null
-                  ? ChatView(
-                      key: ValueKey(_selectedConversation!.id),
-                      conversation: _selectedConversation!,
-                      onActivity: _syncConversationsSilently,
-                      onDeleteChat: () => _handleDeleteConversation(_selectedConversation!),
-                    )
-                  : Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SoftwareLogoWidget(size: 74, iconSize: 40, borderRadius: 22),
-                          const SizedBox(height: 18),
-                          ValueListenableBuilder<String>(
-                            valueListenable: ApiService.softwareNameNotifier,
-                            builder: (context, softwareName, _) {
-                              return Text(
-                                softwareName,
-                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'No conversation selected',
-                            style: TextStyle(color: Colors.white60, fontSize: 14),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Select a chat from the left or start a new conversation',
-                            style: TextStyle(color: Colors.white38, fontSize: 13),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF06B6D4),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                            ),
-                            icon: const Icon(Icons.add_comment, size: 18),
-                            label: const Text('Start New Chat'),
-                            onPressed: _openNewChatDialog,
-                          ),
-                        ],
-                      ),
-                    ),
-            ),
-          ],
-        ),
+        chatsContent,
 
         // Tab 1: Safety Guardian
         const SafetyGuardianView(),
 
-        // Tab 2: Appearance & Identity Settings
+        // Tab 2: Profile & Settings
         IdentitySettingsView(
           currentThemeMode: widget.currentThemeMode,
           onThemeChanged: widget.onThemeChanged,
+          onLogout: widget.onLogout,
         ),
       ],
     );
@@ -949,6 +1024,10 @@ class _NewChatDialogState extends State<_NewChatDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = math.min(380.0, screenSize.width - 32);
+    final dialogHeight = math.min(420.0, screenSize.height - 80);
+
     return AlertDialog(
       backgroundColor: const Color(0xFF131D2E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -960,8 +1039,8 @@ class _NewChatDialogState extends State<_NewChatDialog> {
         ],
       ),
       content: SizedBox(
-        width: 380,
-        height: 400,
+        width: dialogWidth,
+        height: dialogHeight,
         child: Column(
           children: [
             // Username Search Input
@@ -1114,7 +1193,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
   final TextEditingController _descController = TextEditingController();
   final TextEditingController _avatarController = TextEditingController();
   final TextEditingController _userSearchController = TextEditingController();
-  String _selectedGroupIcon = ApiService.currentGroupIcon;
+  String _selectedGroupIcon = GroupIconHelper.defaultIconPreference;
 
   final List<UserModel> _selectedMembers = [];
   List<UserModel> _searchUsersResult = [];
@@ -1188,6 +1267,10 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final dialogWidth = math.min(420.0, screenSize.width - 32);
+    final dialogHeight = math.min(540.0, screenSize.height - 64);
+
     return AlertDialog(
       backgroundColor: const Color(0xFF131D2E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1199,8 +1282,8 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
         ],
       ),
       content: SizedBox(
-        width: 420,
-        height: 520,
+        width: dialogWidth,
+        height: dialogHeight,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

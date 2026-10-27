@@ -25,16 +25,11 @@ class AvatarBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isGroup) {
-      return ValueListenableBuilder<String>(
-        valueListenable: GroupIconHelper.persistentGroupIconNotifier,
-        builder: (context, defaultGroupIcon, _) {
-          final effectiveUrl = (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
-              ? avatarUrl!.trim()
-              : defaultGroupIcon;
+      final effectiveUrl = (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
+          ? avatarUrl!.trim()
+          : GroupIconHelper.defaultIconPreference;
 
-          return _buildBadge(context, effectiveUrl, isGroupMode: true);
-        },
-      );
+      return _buildBadge(context, effectiveUrl, isGroupMode: true);
     }
 
     return _buildBadge(context, avatarUrl, isGroupMode: false);

@@ -24,4 +24,12 @@ class AppBrandingPlatform {
       html.document.head?.append(newLink);
     } catch (_) {}
   }
+
+  static Future<bool> updateAndroidLauncherIcon(String iconKey) async {
+    return false;
+  }
+
+  static Future<String?> getAndroidLauncherIcon() async {
+    return null;
+  }
 }

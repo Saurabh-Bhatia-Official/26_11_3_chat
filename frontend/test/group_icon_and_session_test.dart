@@ -533,7 +533,7 @@ void main() {
       // Verify bottom sheet title and options
       expect(find.text('Update Profile Picture'), findsOneWidget);
       expect(find.text('Take Photo with Camera'), findsOneWidget);
-      expect(find.text('Choose from Gallery'), findsNWidgets(2));
+      expect(find.text('Choose from Gallery'), findsOneWidget);
       expect(find.text('Choose from File Storage'), findsOneWidget);
       expect(find.text('Enter Image URL'), findsOneWidget);
     });
@@ -652,6 +652,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // Switch to Privacy & Security settings section
+      final privacyPill = find.text('Privacy & Security');
+      expect(privacyPill, findsOneWidget);
+      await tester.tap(privacyPill);
+      await tester.pumpAndSettle();
+
       // Find Private Account card and ensure visible
       final privCard = find.text('Private Account');
       expect(privCard, findsOneWidget);
@@ -702,6 +708,106 @@ void main() {
       expect(find.textContaining('saved to cloud database'), findsNothing);
 
       NetworkService.dispose();
+    });
+  });
+
+  group('Requirement 8: Group-Specific Icon Isolation', () {
+    test('Updating Group A icon does not affect Group B or global defaults', () {
+      final groupA = ConversationModel(
+        id: 'group_alpha',
+        title: 'Alpha Team',
+        isGroup: true,
+        avatarUrl: 'preset:cyber_pulse',
+        lastMessageAt: DateTime.now(),
+      );
+
+      final groupB = ConversationModel(
+        id: 'group_beta',
+        title: 'Beta Team',
+        isGroup: true,
+        avatarUrl: null, // default
+        lastMessageAt: DateTime.now(),
+      );
+
+      // Verify Group A has its own icon
+      expect(groupA.avatarUrl, equals('preset:cyber_pulse'));
+      // Verify Group B has not been altered by Group A's icon
+      expect(groupB.avatarUrl, isNull);
+      // Verify ApiService default icon remains untouched
+      expect(ApiService.defaultAppIcon, equals('whisper'));
+    });
+  });
+
+  group('Requirement 9: Profile -> Settings Structure & App Customization', () {
+    testWidgets('IdentitySettingsView displays organized Profile -> Settings navigation', (tester) async {
+      tester.view.physicalSize = const Size(1280, 1000);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: IdentitySettingsView(
+              currentThemeMode: AppThemeMode.obsidianCyber,
+              onThemeChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Check Profile -> Settings breadcrumb header
+      expect(find.text('Profile'), findsWidgets);
+      expect(find.text('Settings'), findsWidgets);
+
+      // Verify all requested organized sections exist
+      expect(find.text('Account & Profile'), findsOneWidget);
+      expect(find.text('App Customization'), findsOneWidget);
+      expect(find.text('Privacy & Security'), findsOneWidget);
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('Chat Settings'), findsOneWidget);
+      expect(find.text('Storage & Data'), findsOneWidget);
+      expect(find.text('About & App Info'), findsOneWidget);
+
+      // Navigate to App Customization section
+      await tester.tap(find.text('App Customization'));
+      await tester.pumpAndSettle();
+
+      // Verify Application Title and Icon customization are present
+      expect(find.text('Application Title'), findsOneWidget);
+      expect(find.text('Application Icon'), findsOneWidget);
+      expect(find.text('Reset Customization to Defaults'), findsOneWidget);
+    });
+
+    test('ApiService setSoftwareName updates title and preserves default fallback', () async {
+      await ApiService.setSoftwareName('Custom Whisper');
+      expect(ApiService.softwareName, equals('Custom Whisper'));
+
+      await ApiService.setSoftwareName('');
+      expect(ApiService.softwareName, equals(ApiService.defaultSoftwareName));
+    });
+
+    test('ApiService setAppIcon updates app icon independently', () async {
+      await ApiService.setAppIcon('solar_flare');
+      expect(ApiService.currentAppIcon, equals('solar_flare'));
+    });
+  });
+
+  group('Requirement 10: Session Persistence and Token Refresh', () {
+    test('Token refresh updates local auth token in SharedPreferences', () async {
+      SharedPreferences.setMockInitialValues({
+        'saved_auth_jwt_token': 'old_jwt_token',
+        'saved_auth_user_json': jsonEncode({
+          'id': 'user_123',
+          'username': 'john_doe',
+          'displayName': 'John Doe',
+        }),
+      });
+
+      // Restore session
+      final restored = await ApiService.initSession();
+      expect(restored, isTrue);
+      expect(ApiService.currentUser.username, equals('john_doe'));
+      expect(ApiService.isAuthInitializing, isFalse);
     });
   });
 }

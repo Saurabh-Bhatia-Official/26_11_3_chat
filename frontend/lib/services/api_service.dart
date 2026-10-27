@@ -39,6 +39,10 @@ class ApiService {
   // Dynamic Auth State (null = not logged in)
   static final ValueNotifier<UserModel?> currentUserNotifier = ValueNotifier<UserModel?>(null);
 
+  // Auth Session Initialization State (prevents flashing login screen on app start)
+  static final ValueNotifier<bool> isAuthInitializingNotifier = ValueNotifier<bool>(true);
+  static bool get isAuthInitializing => isAuthInitializingNotifier.value;
+
   // JWT Token Management
   static String? _authToken;
   static String? get authToken => _authToken;
@@ -111,7 +115,7 @@ class ApiService {
   // AUTHENTICATION & CLOUD PERSISTENCE
   // ==========================================
 
-  /// Synchronizes dynamic title and favicon to the web page/platform
+  /// Synchronizes dynamic title and favicon to the web page/platform and native Android launcher icon
   static void syncBrandingToPlatform() {
     try {
       final iconUrl = customLogoData ?? AppIconHelper.getPresetSvgFaviconDataUri(currentAppIcon);
@@ -119,6 +123,7 @@ class ApiService {
         title: softwareName,
         iconDataUrl: iconUrl,
       );
+      AppBrandingPlatform.updateAndroidLauncherIcon(currentAppIcon);
     } catch (e) {
       debugPrint('Error syncing branding to platform: $e');
     }
@@ -193,22 +198,22 @@ class ApiService {
 
   /// Initializes saved session from SharedPreferences and syncs with cloud database
   static Future<bool> initSession() async {
-    AppTheme.onThemeChanged = (mode) {
-      if (currentUserNotifier.value != null) {
-        updateProfile(themePreference: mode.name);
-      }
-    };
-
-    // Ensure we start with default software name, app icon, and website branding before login
-    resetBrandingToDefault();
-
-    // Initialize network and connectivity monitoring
-    NetworkService.initialize(baseUrl: baseUrl);
-
-    // Initialize and load persistent group icon from storage
-    await GroupIconHelper.initPersistentGroupIcon();
-
     try {
+      AppTheme.onThemeChanged = (mode) {
+        if (currentUserNotifier.value != null) {
+          updateProfile(themePreference: mode.name);
+        }
+      };
+
+      // Ensure we start with default software name, app icon, and website branding before login
+      resetBrandingToDefault();
+
+      // Initialize network and connectivity monitoring
+      NetworkService.initialize(baseUrl: baseUrl);
+
+      // Initialize and load persistent group icon from storage
+      await GroupIconHelper.initPersistentGroupIcon();
+
       final prefs = await SharedPreferences.getInstance();
 
       final savedToken = prefs.getString(_keyToken);
@@ -232,6 +237,33 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('Error restoring saved session: $e');
+    } finally {
+      isAuthInitializingNotifier.value = false;
+    }
+    return false;
+  }
+
+  /// Attempts to refresh the JWT auth token using the backend refresh endpoint
+  static Future<bool> refreshToken() async {
+    if (_authToken == null || _authToken!.isEmpty) return false;
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/auth/refresh'),
+        headers: authHeaders,
+      ).timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final newToken = data['token']?.toString();
+        if (newToken != null && newToken.isNotEmpty) {
+          _authToken = newToken;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_keyToken, newToken);
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error refreshing token: $e');
     }
     return false;
   }
@@ -255,11 +287,52 @@ class ApiService {
         await prefs.setString(_keyUser, jsonEncode(user.toJson()));
         return user;
       } else if (res.statusCode == 401) {
+        // Attempt token refresh first
+        final refreshed = await refreshToken();
+        if (refreshed) {
+          final retryRes = await http.get(
+            Uri.parse('$baseUrl/auth/account'),
+            headers: authHeaders,
+          ).timeout(const Duration(seconds: 5));
+
+          if (retryRes.statusCode == 200) {
+            final data = jsonDecode(retryRes.body);
+            final user = UserModel.fromJson(data['user'] ?? data);
+            currentUser = user;
+            userCache[user.id] = user;
+
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(_keyUser, jsonEncode(user.toJson()));
+            return user;
+          }
+        }
+
+        // If refresh fails, try re-authenticating with remembered credentials
+        final creds = await getSavedCredentials();
+        if (creds['rememberMe'] == 'true' &&
+            creds['username'] != null &&
+            creds['username']!.isNotEmpty &&
+            creds['password'] != null &&
+            creds['password']!.isNotEmpty) {
+          try {
+            final reLoggedInUser = await login(
+              username: creds['username']!,
+              password: creds['password']!,
+              rememberMe: true,
+            );
+            return reLoggedInUser;
+          } catch (e) {
+            debugPrint('Auto re-login with remembered credentials failed: $e');
+          }
+        }
+
+        // Only logout when session is permanently invalid
         await logout();
         return null;
       }
     } catch (e) {
-      debugPrint('Notice on fetching account via JWT: $e');
+      // Retain offline cached user on network failures or temporary timeouts
+      debugPrint('Notice on fetching account via JWT (offline/network): $e');
     }
     return currentUserNotifier.value;
   }

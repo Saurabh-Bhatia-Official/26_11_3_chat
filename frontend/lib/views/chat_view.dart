@@ -17,6 +17,7 @@ import '../widgets/message_bubble.dart';
 import '../widgets/network_status_banner.dart';
 import '../widgets/camera_capture_dialog.dart';
 import '../widgets/group_icon_picker_modal.dart';
+import '../services/group_icon_helper.dart';
 import '../services/permission_service.dart';
 import 'games/chess_game_view.dart';
 import 'games/ludo_game_view.dart';
@@ -26,12 +27,14 @@ class ChatView extends StatefulWidget {
   final ConversationModel conversation;
   final VoidCallback? onActivity;
   final VoidCallback? onDeleteChat;
+  final VoidCallback? onBack;
 
   const ChatView({
     super.key,
     required this.conversation,
     this.onActivity,
     this.onDeleteChat,
+    this.onBack,
   });
 
   @override
@@ -1210,13 +1213,23 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
   Widget _buildHeaderBar() {
     return GlassContainer(
       borderRadius: 0,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
+          if (widget.onBack != null) ...[
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 22),
+              tooltip: 'Back to chats',
+              padding: const EdgeInsets.only(right: 8),
+              constraints: const BoxConstraints(),
+              onPressed: widget.onBack,
+            ),
+          ],
           AvatarBadge(
             avatarUrl: _contactAvatar,
             name: _contactName,
             radius: 20,
+            isGroup: widget.conversation.isGroup,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -2379,16 +2392,40 @@ class _GroupInfoDialogState extends State<_GroupInfoDialog> {
   void _customizeGroupIcon() async {
     final chosen = await GroupIconPickerModal.show(
       context,
-      currentIcon: _currentAvatarUrl ?? ApiService.currentGroupIcon,
-      title: 'Customize Group Icon',
+      currentIcon: _currentAvatarUrl ?? widget.conversation.avatarUrl ?? GroupIconHelper.defaultIconPreference,
+      title: 'Change Group Icon',
     );
-    if (chosen != null && mounted) {
+    if (chosen != null && chosen.isNotEmpty && mounted) {
+      final oldIcon = _currentAvatarUrl;
       setState(() => _currentAvatarUrl = chosen);
       try {
         await ApiService.updateGroupInfo(widget.conversation.id, avatarUrl: chosen);
-        widget.onGroupUpdated();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text('Group icon updated successfully!'),
+                ],
+              ),
+              backgroundColor: Color(0xFF10B981),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          widget.onGroupUpdated();
+        }
       } catch (e) {
-        debugPrint('Error updating group icon: $e');
+        if (mounted) {
+          setState(() => _currentAvatarUrl = oldIcon);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update group icon: $e'),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
+        }
       }
     }
   }
@@ -2547,7 +2584,8 @@ class _GroupInfoDialogState extends State<_GroupInfoDialog> {
   @override
   Widget build(BuildContext context) {
     final me = ApiService.currentUser;
-    final isMeAdmin = widget.conversation.isAdmin(me.id);
+    final isMeAdmin = widget.conversation.isAdmin(me.id) ||
+        (widget.conversation.groupAdminIds.isEmpty && widget.conversation.participant1Id == me.id);
 
     return Dialog(
       backgroundColor: Colors.transparent,

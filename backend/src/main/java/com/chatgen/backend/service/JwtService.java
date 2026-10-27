@@ -72,6 +72,29 @@ public class JwtService {
     }
 
     /**
+     * Extracts user UUID from signed JWT claims, allowing expired tokens during session refresh.
+     */
+    public UUID getUserIdFromTokenAllowExpired(String token) {
+        if (token == null || token.isBlank()) return null;
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token.trim())
+                    .getPayload();
+            return UUID.fromString(claims.getSubject());
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            try {
+                return UUID.fromString(e.getClaims().getSubject());
+            } catch (Exception ignored) {
+                return null;
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Extracts user UUID from signed JWT claims.
      */
     public UUID getUserIdFromToken(String token) {
