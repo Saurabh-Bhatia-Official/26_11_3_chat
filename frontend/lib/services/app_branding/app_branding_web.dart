@@ -25,11 +25,22 @@ class AppBrandingPlatform {
     } catch (_) {}
   }
 
+  static Future<bool> updateAndroidLauncherBranding({
+    required String iconKey,
+    required String title,
+  }) async {
+    return false;
+  }
+
   static Future<bool> updateAndroidLauncherIcon(String iconKey) async {
     return false;
   }
 
   static Future<String?> getAndroidLauncherIcon() async {
+    return null;
+  }
+
+  static Future<Map<String, String>?> getAndroidLauncherBranding() async {
     return null;
   }
 }

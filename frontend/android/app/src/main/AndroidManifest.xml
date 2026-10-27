@@ -33,22 +33,22 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
-            <!-- Specifies an Android theme to apply to this Activity as soon as
-                 the Android process has started. This theme is visible to the user
-                 while the Flutter UI initializes. After that, this theme continues
-                 to determine the Window background behind the Flutter UI. -->
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
         </activity>
 
-        <!-- Dynamic Launcher Activity Aliases for Runtime Icon Switching -->
+        <!-- ================================================================= -->
+        <!-- DYNAMIC LAUNCHER ACTIVITY ALIASES FOR ICON & NAME CUSTOMIZATION  -->
+        <!-- ================================================================= -->
+
+        <!-- 1. Whisper Icon Family -->
         <activity-alias
             android:name=".MainActivityDefault"
             android:targetActivity=".MainActivity"
             android:icon="@mipmap/ic_launcher"
-            android:label="@string/app_name"
+            android:label="@string/app_name_whisper"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
@@ -58,10 +58,10 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".MainActivityCyberPulse"
+            android:name=".MainActivity_whisper_cyber_pulse"
             android:targetActivity=".MainActivity"
-            android:icon="@mipmap/ic_launcher_cyber_pulse"
-            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name_cyber_pulse"
             android:enabled="false"
             android:exported="true">
             <intent-filter>
@@ -70,11 +70,117 @@
             </intent-filter>
         </activity-alias>
 
+        <activity-alias
+            android:name=".MainActivity_whisper_cyber_shield"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name_cyber_shield"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_whisper_cosmic_night"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name_cosmic_night"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_whisper_solar_flare"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name_solar_flare"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 2. Cyber Pulse Icon Family -->
+        <activity-alias
+            android:name=".MainActivityCyberPulse"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_pulse"
+            android:label="@string/app_name_cyber_pulse"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cyber_pulse_whisper"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_pulse"
+            android:label="@string/app_name_whisper"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cyber_pulse_cyber_shield"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_pulse"
+            android:label="@string/app_name_cyber_shield"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cyber_pulse_cosmic_night"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_pulse"
+            android:label="@string/app_name_cosmic_night"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cyber_pulse_solar_flare"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_pulse"
+            android:label="@string/app_name_solar_flare"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 3. Cyber Shield Icon Family -->
         <activity-alias
             android:name=".MainActivityCyberShield"
             android:targetActivity=".MainActivity"
             android:icon="@mipmap/ic_launcher_cyber_shield"
-            android:label="@string/app_name"
+            android:label="@string/app_name_cyber_shield"
             android:enabled="false"
             android:exported="true">
             <intent-filter>
@@ -83,11 +189,64 @@
             </intent-filter>
         </activity-alias>
 
+        <activity-alias
+            android:name=".MainActivity_cyber_shield_whisper"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_shield"
+            android:label="@string/app_name_whisper"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cyber_shield_cyber_pulse"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_shield"
+            android:label="@string/app_name_cyber_pulse"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cyber_shield_cosmic_night"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_shield"
+            android:label="@string/app_name_cosmic_night"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cyber_shield_solar_flare"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cyber_shield"
+            android:label="@string/app_name_solar_flare"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 4. Cosmic Night Icon Family -->
         <activity-alias
             android:name=".MainActivityCosmicNight"
             android:targetActivity=".MainActivity"
             android:icon="@mipmap/ic_launcher_cosmic_night"
-            android:label="@string/app_name"
+            android:label="@string/app_name_cosmic_night"
             android:enabled="false"
             android:exported="true">
             <intent-filter>
@@ -97,10 +256,115 @@
         </activity-alias>
 
         <activity-alias
+            android:name=".MainActivity_cosmic_night_whisper"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cosmic_night"
+            android:label="@string/app_name_whisper"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cosmic_night_cyber_pulse"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cosmic_night"
+            android:label="@string/app_name_cyber_pulse"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cosmic_night_cyber_shield"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cosmic_night"
+            android:label="@string/app_name_cyber_shield"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_cosmic_night_solar_flare"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_cosmic_night"
+            android:label="@string/app_name_solar_flare"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <!-- 5. Solar Flare Icon Family -->
+        <activity-alias
             android:name=".MainActivitySolarFlare"
             android:targetActivity=".MainActivity"
             android:icon="@mipmap/ic_launcher_solar_flare"
-            android:label="@string/app_name"
+            android:label="@string/app_name_solar_flare"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_solar_flare_whisper"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_solar_flare"
+            android:label="@string/app_name_whisper"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_solar_flare_cyber_pulse"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_solar_flare"
+            android:label="@string/app_name_cyber_pulse"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_solar_flare_cyber_shield"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_solar_flare"
+            android:label="@string/app_name_cyber_shield"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivity_solar_flare_cosmic_night"
+            android:targetActivity=".MainActivity"
+            android:icon="@mipmap/ic_launcher_solar_flare"
+            android:label="@string/app_name_cosmic_night"
             android:enabled="false"
             android:exported="true">
             <intent-filter>

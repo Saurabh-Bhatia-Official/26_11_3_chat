@@ -231,6 +231,37 @@ class AppIconHelper {
     );
   }
 
+  static bool isPredefinedName(String? name) {
+    if (name == null || name.trim().isEmpty) return false;
+    final clean = name.trim().toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+    return clean == 'whisper' ||
+        clean == 'whisperblueribbon' ||
+        clean == 'cyberpulse' ||
+        clean == 'cybershield' ||
+        clean == 'cosmicnight' ||
+        clean == 'solarflare';
+  }
+
+  static String normalizePresetName(String? name) {
+    if (name == null || name.trim().isEmpty) return 'Whisper';
+    final clean = name.trim().toLowerCase().replaceAll(RegExp(r'[\s_-]+'), '');
+    switch (clean) {
+      case 'whisper':
+      case 'whisperblueribbon':
+        return 'Whisper';
+      case 'cyberpulse':
+        return 'Cyber Pulse';
+      case 'cybershield':
+        return 'Cyber Shield';
+      case 'cosmicnight':
+        return 'Cosmic Night';
+      case 'solarflare':
+        return 'Solar Flare';
+      default:
+        return name.trim();
+    }
+  }
+
   static String getPresetSvgFaviconDataUri(String? id) {
     switch (id) {
       case 'whisper':

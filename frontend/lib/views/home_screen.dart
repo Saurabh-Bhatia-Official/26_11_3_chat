@@ -325,7 +325,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
-    final isWide = screenWidth >= 720;
+    final orientation = MediaQuery.of(context).orientation;
+    // Mobile phones held in portrait mode should ALWAYS use the single-pane mobile layout.
+    // Multi-pane dual-view is reserved strictly for landscape displays with sufficient width (>= 960dp).
+    final isWide = orientation == Orientation.landscape && screenWidth >= 960;
 
     return PopScope(
       canPop: _selectedConversation == null || isWide,
@@ -656,27 +659,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
                 icon: const Icon(Icons.group_add_rounded, color: Color(0xFF10B981), size: 22),
                 tooltip: 'Create Group',
                 onPressed: _openCreateGroupDialog,
               ),
-              const SizedBox(width: 8),
               IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
                 icon: const Icon(Icons.add_circle, color: Color(0xFF06B6D4), size: 24),
                 tooltip: 'Start Chat with User',
                 onPressed: _openNewChatDialog,
               ),
-              const SizedBox(width: 8),
               IconButton(
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
                 icon: const Icon(Icons.call_outlined, color: Color(0xFF8B5CF6), size: 22),
                 tooltip: 'Call History',
                 onPressed: _openCallHistoryDialog,

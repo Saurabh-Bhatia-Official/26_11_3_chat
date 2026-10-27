@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Whisper</string>
+    <string name="app_name_whisper">Whisper</string>
+    <string name="app_name_cyber_pulse">Cyber Pulse</string>
+    <string name="app_name_cyber_shield">Cyber Shield</string>
+    <string name="app_name_cosmic_night">Cosmic Night</string>
+    <string name="app_name_solar_flare">Solar Flare</string>
 </resources>
-

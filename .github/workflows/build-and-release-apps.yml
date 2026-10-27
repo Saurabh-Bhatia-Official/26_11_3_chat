@@ -55,8 +55,16 @@ jobs:
           yes | $SDKMANAGER --licenses || true
           $SDKMANAGER "platforms;android-37" || $SDKMANAGER "platforms;android-37.0" || true
           ANDROID_PLATFORMS="${ANDROID_HOME:-/usr/local/lib/android/sdk}/platforms"
-          if [ -d "$ANDROID_PLATFORMS/android-37.0" ] && [ ! -e "$ANDROID_PLATFORMS/android-37" ]; then
-            ln -s "$ANDROID_PLATFORMS/android-37.0" "$ANDROID_PLATFORMS/android-37"
+          if [ ! -e "$ANDROID_PLATFORMS/android-37" ]; then
+            if [ -d "$ANDROID_PLATFORMS/android-37.0" ]; then
+              ln -s "$ANDROID_PLATFORMS/android-37.0" "$ANDROID_PLATFORMS/android-37"
+            else
+              LATEST_PLATFORM=$(ls -d "$ANDROID_PLATFORMS"/android-* 2>/dev/null | sort -V | tail -n 1)
+              if [ -n "$LATEST_PLATFORM" ]; then
+                echo "Aliasing $LATEST_PLATFORM to android-37 for compileSdk compatibility"
+                ln -s "$LATEST_PLATFORM" "$ANDROID_PLATFORMS/android-37"
+              fi
+            fi
           fi
 
       - name: 📦 Install Flutter Dependencies

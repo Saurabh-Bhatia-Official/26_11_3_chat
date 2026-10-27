@@ -482,13 +482,15 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          duration: const Duration(milliseconds: 1500),
+          duration: const Duration(milliseconds: 2000),
           backgroundColor: item['color'] as Color,
           content: Row(
             children: [
               Icon(item['icon'] as IconData, color: Colors.white, size: 20),
               const SizedBox(width: 8),
-              Text('Application icon updated to ${item['name']}!'),
+              Expanded(
+                child: Text('Application icon updated to ${item['name']}! Launcher will reflect this shortly.'),
+              ),
             ],
           ),
         ),
@@ -601,6 +603,10 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     }
     await ApiService.setSoftwareName(newName);
     if (mounted) {
+      final isPredefined = AppIconHelper.isPredefinedName(newName);
+      final msg = isPredefined
+          ? 'Application title and launcher name updated to "$newName"!'
+          : 'Application title updated to "$newName"! (Launcher uses predefined alias)';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -608,7 +614,7 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
               const Icon(Icons.check_circle, color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Application title updated to "$newName"!'),
+                child: Text(msg),
               ),
             ],
           ),
@@ -767,7 +773,8 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
   Widget build(BuildContext context) {
     final user = ApiService.currentUser;
     final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 720;
+    final orientation = MediaQuery.of(context).orientation;
+    final isMobile = orientation == Orientation.portrait || screenWidth < 900;
 
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(

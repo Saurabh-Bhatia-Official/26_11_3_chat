@@ -1121,7 +1121,8 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isWide = constraints.maxWidth >= 720;
+        final orientation = MediaQuery.of(context).orientation;
+        final bool isWide = orientation == Orientation.landscape && constraints.maxWidth >= 850;
         final bool hasActiveGame = _activeGame != null;
 
         return Column(

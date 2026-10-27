@@ -24,6 +24,7 @@ class ApiService {
   static const String _keyRememberMe = 'saved_auth_remember_me';
   static const String _keySoftwareName = 'custom_software_name';
   static const String _keyCustomLogo = 'custom_software_logo_data';
+  static const String _keyAppIcon = 'custom_app_icon_preference';
 
   // Default branding applied when not logged in or after logout
   static const String defaultSoftwareName = 'Whisper';
@@ -100,10 +101,16 @@ class ApiService {
   }
 
   /// Resets title, app logo, and website favicon back to defaults when logged out
-  static void resetBrandingToDefault() {
+  static Future<void> resetBrandingToDefault() async {
     softwareNameNotifier.value = defaultSoftwareName;
     customLogoDataNotifier.value = null;
     currentAppIconNotifier.value = defaultAppIcon;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keySoftwareName);
+      await prefs.remove(_keyCustomLogo);
+      await prefs.remove(_keyAppIcon);
+    } catch (_) {}
     syncBrandingToPlatform();
   }
 
@@ -115,7 +122,7 @@ class ApiService {
   // AUTHENTICATION & CLOUD PERSISTENCE
   // ==========================================
 
-  /// Synchronizes dynamic title and favicon to the web page/platform and native Android launcher icon
+  /// Synchronizes dynamic title and favicon to the web page/platform and native Android launcher icon & name
   static void syncBrandingToPlatform() {
     try {
       final iconUrl = customLogoData ?? AppIconHelper.getPresetSvgFaviconDataUri(currentAppIcon);
@@ -123,7 +130,10 @@ class ApiService {
         title: softwareName,
         iconDataUrl: iconUrl,
       );
-      AppBrandingPlatform.updateAndroidLauncherIcon(currentAppIcon);
+      AppBrandingPlatform.updateAndroidLauncherBranding(
+        iconKey: currentAppIcon,
+        title: softwareName,
+      );
     } catch (e) {
       debugPrint('Error syncing branding to platform: $e');
     }
@@ -205,9 +215,6 @@ class ApiService {
         }
       };
 
-      // Ensure we start with default software name, app icon, and website branding before login
-      resetBrandingToDefault();
-
       // Initialize network and connectivity monitoring
       NetworkService.initialize(baseUrl: baseUrl);
 
@@ -215,6 +222,31 @@ class ApiService {
       await GroupIconHelper.initPersistentGroupIcon();
 
       final prefs = await SharedPreferences.getInstance();
+
+      // Restore locally persisted custom branding across restarts
+      final savedName = prefs.getString(_keySoftwareName);
+      if (savedName != null && savedName.trim().isNotEmpty) {
+        softwareNameNotifier.value = savedName.trim();
+      } else {
+        softwareNameNotifier.value = defaultSoftwareName;
+      }
+
+      final savedIcon = prefs.getString(_keyAppIcon);
+      if (savedIcon != null && savedIcon.trim().isNotEmpty) {
+        currentAppIconNotifier.value = savedIcon.trim();
+      } else {
+        currentAppIconNotifier.value = defaultAppIcon;
+      }
+
+      final savedLogo = prefs.getString(_keyCustomLogo);
+      if (savedLogo != null && savedLogo.trim().isNotEmpty) {
+        customLogoDataNotifier.value = savedLogo.trim();
+      } else {
+        customLogoDataNotifier.value = null;
+      }
+
+      // Sync restored branding to native Android launcher and web
+      syncBrandingToPlatform();
 
       final savedToken = prefs.getString(_keyToken);
       if (savedToken != null && savedToken.isNotEmpty) {
@@ -225,7 +257,6 @@ class ApiService {
       if (userJson != null && userJson.isNotEmpty) {
         final Map<String, dynamic> data = jsonDecode(userJson);
         final user = UserModel.fromJson(data);
-        // ONLY apply account-specific title and icon when a logged-in user exists
         currentUser = user;
         userCache[user.id] = user;
 
@@ -341,6 +372,10 @@ class ApiService {
   static Future<void> setSoftwareName(String name) async {
     final trimmed = name.trim().isEmpty ? defaultSoftwareName : name.trim();
     softwareNameNotifier.value = trimmed;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keySoftwareName, trimmed);
+    } catch (_) {}
     syncBrandingToPlatform();
     if (currentUserNotifier.value != null) {
       await updateProfile(softwareName: trimmed);
@@ -351,6 +386,14 @@ class ApiService {
   static Future<void> setCustomLogo(String? logoDataUrl) async {
     final cleanLogo = (logoDataUrl != null && logoDataUrl.trim().isNotEmpty) ? logoDataUrl.trim() : null;
     customLogoDataNotifier.value = cleanLogo;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (cleanLogo != null) {
+        await prefs.setString(_keyCustomLogo, cleanLogo);
+      } else {
+        await prefs.remove(_keyCustomLogo);
+      }
+    } catch (_) {}
     syncBrandingToPlatform();
     if (currentUserNotifier.value != null) {
       await updateProfile(customLogoUrl: cleanLogo ?? '');
@@ -365,6 +408,10 @@ class ApiService {
   /// Sets active app icon preference for the logged in account
   static Future<void> setAppIcon(String iconId) async {
     currentAppIconNotifier.value = iconId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyAppIcon, iconId);
+    } catch (_) {}
     syncBrandingToPlatform();
     if (currentUserNotifier.value != null) {
       await updateProfile(appIconPreference: iconId);

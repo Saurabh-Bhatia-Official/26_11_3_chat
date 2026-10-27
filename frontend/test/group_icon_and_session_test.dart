@@ -782,13 +782,40 @@ void main() {
       await ApiService.setSoftwareName('Custom Whisper');
       expect(ApiService.softwareName, equals('Custom Whisper'));
 
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('custom_software_name'), equals('Custom Whisper'));
+
       await ApiService.setSoftwareName('');
       expect(ApiService.softwareName, equals(ApiService.defaultSoftwareName));
     });
 
-    test('ApiService setAppIcon updates app icon independently', () async {
+    test('ApiService setAppIcon updates app icon independently and persists locally', () async {
       await ApiService.setAppIcon('solar_flare');
       expect(ApiService.currentAppIcon, equals('solar_flare'));
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('custom_app_icon_preference'), equals('solar_flare'));
+    });
+
+    test('ApiService.initSession restores saved custom title and icon on app restart', () async {
+      SharedPreferences.setMockInitialValues({
+        'custom_software_name': 'Cyber Pulse',
+        'custom_app_icon_preference': 'cyber_pulse',
+      });
+
+      await ApiService.initSession();
+      expect(ApiService.softwareName, equals('Cyber Pulse'));
+      expect(ApiService.currentAppIcon, equals('cyber_pulse'));
+    });
+
+    test('AppIconHelper validates predefined launcher names and aliases correctly', () {
+      expect(AppIconHelper.isPredefinedName('Whisper'), isTrue);
+      expect(AppIconHelper.isPredefinedName('Cyber Pulse'), isTrue);
+      expect(AppIconHelper.isPredefinedName('Cyber Shield'), isTrue);
+      expect(AppIconHelper.isPredefinedName('Cosmic Night'), isTrue);
+      expect(AppIconHelper.isPredefinedName('Solar Flare'), isTrue);
+      expect(AppIconHelper.isPredefinedName('cyber_pulse'), isTrue);
+      expect(AppIconHelper.isPredefinedName('Arbitrary Chat App'), isFalse);
     });
   });
 
