@@ -92,7 +92,7 @@ class _GroupIconPickerModalState extends State<GroupIconPickerModal> with Single
     }
 
     try {
-      final picked = await FilePickerHelper.pickImage();
+      final picked = await FilePickerHelper.pickImage(context: context);
       if (picked != null && picked.bytes.isNotEmpty && mounted) {
         if (picked.bytes.lengthInBytes > 5 * 1024 * 1024) {
           ScaffoldMessenger.of(context).showSnackBar(

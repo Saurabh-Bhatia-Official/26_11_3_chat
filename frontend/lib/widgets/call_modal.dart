@@ -111,6 +111,7 @@ class _CallModalState extends State<CallModal> with SingleTickerProviderStateMix
           receiverId: widget.session!.receiverId,
           receiverName: widget.title,
           isVideo: widget.isVideo,
+          existingSession: widget.session,
         );
       }
     }

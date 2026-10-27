@@ -326,7 +326,7 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     if (!hasPerm) return;
 
     try {
-      final picked = await FilePickerHelper.pickImage();
+      final picked = await FilePickerHelper.pickImage(context: context);
       if (picked != null && picked.bytes.isNotEmpty && mounted) {
         await _uploadAndApplyAvatar(picked.bytes, picked.name);
       }
@@ -476,20 +476,34 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
   }
 
   void _selectAppIcon(Map<String, dynamic> item) async {
-    final iconId = item['id'] as String;
+    final iconId = item['id'] as String?;
+    if (iconId == null || !AppIconHelper.options.any((o) => o['id'] == iconId)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Warning: App icon cannot be changed. Please select a valid image file or provide the required launcher icon assets.',
+            ),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => selectedIcon = iconId);
     await ApiService.setAppIcon(iconId);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          duration: const Duration(milliseconds: 2000),
+          duration: const Duration(milliseconds: 2500),
           backgroundColor: item['color'] as Color,
           content: Row(
             children: [
               Icon(item['icon'] as IconData, color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Application icon updated to ${item['name']}! Launcher will reflect this shortly.'),
+                child: Text('Application icon updated to ${item['name']}! Launcher alias enabled and synced.'),
               ),
             ],
           ),
@@ -507,17 +521,33 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
     if (!hasPerm) return;
 
     try {
-      final picked = await FilePickerHelper.pickDocument(
+      final picked = await FilePickerHelper.pickImage(
+        context: context,
+        title: 'Select Application Logo',
         allowedExtensions: ['png', 'jpg', 'jpeg', 'svg', 'webp', 'ico'],
       );
 
-      if (picked == null || picked.bytes.isEmpty) return;
+      if (picked == null) return;
+
+      if (picked.bytes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Warning: App icon cannot be changed. Please select a valid image file or provide the required launcher icon assets.',
+              ),
+              backgroundColor: Color(0xFFEF4444),
+            ),
+          );
+        }
+        return;
+      }
 
       if (picked.bytes.lengthInBytes > 5 * 1024 * 1024) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Logo file is too large. Maximum supported size is 5MB.'),
+              content: Text('Warning: Logo file is too large. Maximum supported size is 5MB.'),
               backgroundColor: Color(0xFFEF4444),
             ),
           );
@@ -534,7 +564,7 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
           : (ext == 'ico' ? 'image/x-icon' : 'image/$ext');
       final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
 
-      // Apply locally
+      // Apply locally for instant preview and persistence
       await ApiService.setCustomLogo(dataUrl);
 
       // Upload to media storage
@@ -556,7 +586,9 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
                 const Icon(Icons.check_circle, color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('Custom application logo updated (${picked.name})!'),
+                  child: Text(
+                    'Custom application logo updated (${picked.name})! In-app branding applied. (Android launcher icons require native compiled assets).',
+                  ),
                 ),
               ],
             ),
@@ -568,9 +600,11 @@ class _IdentitySettingsViewState extends State<IdentitySettingsView> {
       if (mounted) {
         setState(() => _isUploadingSoftwareLogo = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error selecting logo file: $e'),
-            backgroundColor: const Color(0xFFEF4444),
+          const SnackBar(
+            content: Text(
+              'Warning: App icon cannot be changed. Please select a valid image file or provide the required launcher icon assets.',
+            ),
+            backgroundColor: Color(0xFFEF4444),
           ),
         );
       }

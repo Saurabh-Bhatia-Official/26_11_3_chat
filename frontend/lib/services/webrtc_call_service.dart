@@ -4,6 +4,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../models/models.dart';
 import 'api_service.dart';
 import 'call_signaling_service.dart';
+import 'permission_service.dart';
 
 enum CallState {
   idle,
@@ -41,6 +42,9 @@ class WebRtcCallService {
 
   bool _isSpeakerOn = true;
   bool get isSpeakerOn => _isSpeakerOn;
+
+  final List<RTCIceCandidate> _pendingRemoteCandidates = [];
+  bool _remoteDescriptionSet = false;
 
   int _durationSeconds = 0;
   int get durationSeconds => _durationSeconds;
@@ -106,18 +110,24 @@ class WebRtcCallService {
     required String receiverId,
     required String receiverName,
     required bool isVideo,
+    CallSessionModel? existingSession,
   }) async {
     await initializeRenderers();
     _setState(CallState.calling);
 
     try {
-      // 1. Create CallSession in backend
-      final session = await ApiService.initiateCall(
-        conversationId: conversationId,
-        receiverId: receiverId,
-        receiverName: receiverName,
-        callType: isVideo ? 'VIDEO' : 'AUDIO',
-      );
+      // 1. Create or use existing CallSession in backend
+      final CallSessionModel session;
+      if (existingSession != null) {
+        session = existingSession;
+      } else {
+        session = await ApiService.initiateCall(
+          conversationId: conversationId,
+          receiverId: receiverId,
+          receiverName: receiverName,
+          callType: isVideo ? 'VIDEO' : 'AUDIO',
+        );
+      }
 
       _currentSession = session;
 
@@ -136,8 +146,14 @@ class WebRtcCallService {
         }
       });
 
-      // 2. Acquire local media
+      // 2. Acquire local media with proactive permission checks
       await _getUserMedia(isVideo);
+
+      // Set default audio routing: speakerphone for video calls, earpiece for voice calls
+      _isSpeakerOn = isVideo;
+      try {
+        Helper.setSpeakerphoneOn(_isSpeakerOn);
+      } catch (_) {}
 
       // 3. Create PeerConnection with coturn STUN/TURN servers
       await _createPeerConnection();
@@ -181,15 +197,21 @@ class WebRtcCallService {
 
       final isVideo = session.callType.toUpperCase() == 'VIDEO';
 
-      // 1. Acquire local media
+      // 1. Acquire local media with proactive permission checks
       await _getUserMedia(isVideo);
+
+      // Set default audio routing
+      _isSpeakerOn = isVideo;
+      try {
+        Helper.setSpeakerphoneOn(_isSpeakerOn);
+      } catch (_) {}
 
       // 2. Create PeerConnection
       await _createPeerConnection();
 
       _listenToSignaling();
 
-      // Notify caller that we accepted
+      // Notify caller that we accepted and are ready for media negotiation
       _signaling.sendSignal({
         'type': 'CALL_ACCEPT',
         'callId': session.id,
@@ -280,9 +302,34 @@ class WebRtcCallService {
   }
 
   Future<void> _getUserMedia(bool isVideo) async {
+    // 1. Proactively request microphone permission
+    final micGranted = await PermissionService.requestPermission(
+      null,
+      AppPermissionType.microphone,
+      showRationale: false,
+    );
+    if (!micGranted) {
+      throw Exception('Microphone permission required for calling');
+    }
+
+    // 2. If video, check camera permission
+    bool enableVideo = isVideo;
+    if (isVideo) {
+      final camGranted = await PermissionService.requestPermission(
+        null,
+        AppPermissionType.camera,
+        showRationale: false,
+      );
+      if (!camGranted) {
+        debugPrint('[WebRtcCallService] Camera permission denied, falling back to audio only');
+        enableVideo = false;
+        _errorController.add('Camera permission denied; voice-only mode enabled.');
+      }
+    }
+
     final Map<String, dynamic> mediaConstraints = {
       'audio': true,
-      'video': isVideo
+      'video': enableVideo
           ? {
               'mandatory': {
                 'minWidth': '640',
@@ -301,7 +348,7 @@ class WebRtcCallService {
     } catch (e) {
       debugPrint('[WebRtcCallService] Error obtaining user media: $e');
       // If video fails due to no camera, try audio only
-      if (isVideo) {
+      if (enableVideo) {
         try {
           _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
           localRenderer.srcObject = _localStream;
@@ -311,6 +358,37 @@ class WebRtcCallService {
       } else {
         throw Exception('Microphone permission required or hardware unavailable');
       }
+    }
+  }
+
+  Future<void> _handleRemoteCandidate(Map<String, dynamic> candMap) async {
+    final candidate = RTCIceCandidate(
+      candMap['candidate'],
+      candMap['sdpMid'],
+      candMap['sdpMLineIndex'],
+    );
+    if (_peerConnection != null && _remoteDescriptionSet) {
+      try {
+        await _peerConnection!.addCandidate(candidate);
+      } catch (e) {
+        debugPrint('[WebRtcCallService] addCandidate error: $e');
+      }
+    } else {
+      _pendingRemoteCandidates.add(candidate);
+    }
+  }
+
+  Future<void> _drainPendingCandidates() async {
+    _remoteDescriptionSet = true;
+    if (_peerConnection != null && _pendingRemoteCandidates.isNotEmpty) {
+      for (final candidate in _pendingRemoteCandidates) {
+        try {
+          await _peerConnection!.addCandidate(candidate);
+        } catch (e) {
+          debugPrint('[WebRtcCallService] drainCandidate error: $e');
+        }
+      }
+      _pendingRemoteCandidates.clear();
     }
   }
 
@@ -391,6 +469,30 @@ class WebRtcCallService {
       switch (type) {
         case 'CALL_ACCEPT':
           _setState(CallState.connecting);
+          // If we are the caller, immediately re-send our SDP offer so the receiver is guaranteed to receive it
+          if (_peerConnection != null) {
+            try {
+              final localDesc = await _peerConnection!.getLocalDescription();
+              if (localDesc != null) {
+                final targetId = (_currentSession?.callerId == ApiService.currentUser.id)
+                    ? _currentSession?.receiverId
+                    : _currentSession?.callerId;
+                if (targetId != null) {
+                  _signaling.sendSignal({
+                    'type': 'WEBRTC_OFFER',
+                    'callId': _currentSession?.id,
+                    'conversationId': _currentSession?.conversationId,
+                    'targetUserId': targetId,
+                    'senderId': ApiService.currentUser.id,
+                    'sdp': localDesc.sdp,
+                    'sdpType': localDesc.type,
+                  });
+                }
+              }
+            } catch (e) {
+              debugPrint('[WebRtcCallService] Error transmitting offer on CALL_ACCEPT: $e');
+            }
+          }
           break;
 
         case 'CALL_REJECT':
@@ -427,6 +529,7 @@ class WebRtcCallService {
               await _peerConnection!.setRemoteDescription(
                 RTCSessionDescription(sdp, 'offer'),
               );
+              await _drainPendingCandidates();
               final answer = await _peerConnection!.createAnswer({
                 'offerToReceiveAudio': 1,
                 'offerToReceiveVideo': (_currentSession?.callType == 'VIDEO') ? 1 : 0,
@@ -455,22 +558,16 @@ class WebRtcCallService {
               await _peerConnection!.setRemoteDescription(
                 RTCSessionDescription(sdp, 'answer'),
               );
+              await _drainPendingCandidates();
               _setState(CallState.connected);
             }
           }
           break;
 
         case 'ICE_CANDIDATE':
-          if (_peerConnection != null) {
-            final candMap = signal['candidate'] as Map<String, dynamic>?;
-            if (candMap != null) {
-              final candidate = RTCIceCandidate(
-                candMap['candidate'],
-                candMap['sdpMid'],
-                candMap['sdpMLineIndex'],
-              );
-              await _peerConnection!.addCandidate(candidate);
-            }
+          final candMap = signal['candidate'] as Map<String, dynamic>?;
+          if (candMap != null) {
+            await _handleRemoteCandidate(candMap);
           }
           break;
       }
@@ -553,6 +650,9 @@ class WebRtcCallService {
     _peerConnection?.close();
     _peerConnection?.dispose();
     _peerConnection = null;
+
+    _remoteDescriptionSet = false;
+    _pendingRemoteCandidates.clear();
 
     _isMuted = false;
     _isCameraOff = false;

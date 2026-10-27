@@ -423,7 +423,7 @@ class _ChatViewState extends State<ChatView> with WidgetsBindingObserver {
     if (!hasPerm) return;
 
     try {
-      final picked = await FilePickerHelper.pickImage();
+      final picked = await FilePickerHelper.pickImage(context: context);
       if (picked != null && mounted) {
         setState(() {
           _pendingImageBytes = picked.bytes;

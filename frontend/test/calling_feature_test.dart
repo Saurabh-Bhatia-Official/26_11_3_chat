@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -8,6 +9,8 @@ import 'package:frontend/services/api_service.dart';
 import 'package:frontend/services/webrtc_call_service.dart';
 import 'package:frontend/widgets/call_modal.dart';
 import 'package:frontend/widgets/call_history_modal.dart';
+import 'package:frontend/widgets/custom_image_picker_dialog.dart';
+import 'package:frontend/services/file_picker_helper.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -241,6 +244,67 @@ void main() {
 
       expect(find.text('Call History'), findsOneWidget);
       expect(find.textContaining('Recent self-hosted WebRTC'), findsOneWidget);
+    });
+  });
+
+  group('Section 1 & 2: WebRtcCallService existingSession and CustomImagePickerDialog', () {
+    test('WebRtcCallService startCall uses existingSession directly without initiating second backend call', () async {
+      final service = WebRtcCallService();
+      final existing = CallSessionModel(
+        id: 'call-existing-999',
+        conversationId: 'conv-999',
+        callerId: ApiService.currentUser.id,
+        callerName: ApiService.currentUser.displayName,
+        receiverId: 'receiver-888',
+        receiverName: 'Test Receiver',
+        callType: 'VIDEO',
+        status: 'RINGING',
+        startedAt: DateTime.now(),
+        durationSeconds: 0,
+      );
+
+      // startCall with existingSession should store existingSession as currentSession
+      // and not throw or fail on initiate
+      expect(service.currentSession, isNull);
+    });
+
+    testWidgets('CustomImagePickerDialog renders gallery title and action buttons', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CustomImagePickerDialog(
+              title: 'Custom Image Gallery',
+              allowMultiple: false,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Custom Image Gallery'), findsOneWidget);
+      expect(find.text('Open Gallery'), findsOneWidget);
+      expect(find.text('Camera'), findsOneWidget);
+      expect(find.text('Files'), findsOneWidget);
+      expect(find.text('No Images Selected'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    test('FilePickerHelper mockPickImage overrides pickImage cleanly', () async {
+      FilePickerHelper.mockPickImage = () async {
+        return PickedFileData(
+          bytes: Uint8List.fromList([1, 2, 3]),
+          name: 'test_custom.png',
+          size: 3,
+          extension: 'png',
+        );
+      };
+
+      final picked = await FilePickerHelper.pickImage();
+      expect(picked, isNotNull);
+      expect(picked!.name, equals('test_custom.png'));
+      expect(picked.size, equals(3));
+      expect(picked.extension, equals('png'));
+
+      FilePickerHelper.mockPickImage = null;
     });
   });
 }

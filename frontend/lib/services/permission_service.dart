@@ -155,7 +155,7 @@ class PermissionService {
   /// 2. Request permission from platform
   /// 3. Handle granted, denied, and permanently denied gracefully
   static Future<bool> requestPermission(
-    BuildContext context,
+    BuildContext? context,
     AppPermissionType type, {
     bool showRationale = true,
   }) async {
@@ -163,12 +163,12 @@ class PermissionService {
       final status = mockStatus![type]!;
       if (status.isGranted) return true;
       if (status.isPermanentlyDenied) {
-        if (context.mounted) {
+        if (context != null && context.mounted) {
           await showPermanentlyDeniedDialog(context, type);
         }
         return false;
       }
-      if (context.mounted) {
+      if (context != null && context.mounted) {
         await showDeniedDialog(context, type);
       }
       return false;
@@ -179,7 +179,7 @@ class PermissionService {
         return true;
       }
       // On web, show explanation if requested for camera/mic, then proceed to browser prompt
-      if (showRationale) {
+      if (showRationale && context != null && context.mounted) {
         final proceed = await showRationaleDialog(context, type);
         if (!proceed) return false;
       }
@@ -201,14 +201,14 @@ class PermissionService {
     }
 
     if (currentStatus.isPermanentlyDenied) {
-      if (context.mounted) {
+      if (context != null && context.mounted) {
         await showPermanentlyDeniedDialog(context, type);
       }
       return false;
     }
 
     // Step 1: Explain purpose to user
-    if (showRationale) {
+    if (showRationale && context != null) {
       if (!context.mounted) return false;
       final proceed = await showRationaleDialog(context, type);
       if (!proceed) return false;
@@ -230,13 +230,13 @@ class PermissionService {
 
         // Only mark permanently denied if both are permanently denied
         if (photoStatus.isPermanentlyDenied && storageStatus.isPermanentlyDenied) {
-          if (context.mounted) {
+          if (context != null && context.mounted) {
             await showPermanentlyDeniedDialog(context, type);
           }
           return false;
         }
 
-        if (context.mounted) {
+        if (context != null && context.mounted) {
           await showDeniedDialog(context, type);
         }
         return false;
@@ -250,13 +250,13 @@ class PermissionService {
         }
 
         if (newStatus.isPermanentlyDenied) {
-          if (context.mounted) {
+          if (context != null && context.mounted) {
             await showPermanentlyDeniedDialog(context, type);
           }
           return false;
         }
 
-        if (context.mounted) {
+        if (context != null && context.mounted) {
           await showDeniedDialog(context, type);
         }
         return false;
@@ -265,7 +265,6 @@ class PermissionService {
       debugPrint('Permission request error: $e');
       return false;
     }
-    return false;
   }
 
   /// Displays clear rationale explanation dialog to the user before requesting
